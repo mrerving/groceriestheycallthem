@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#6b7fa3">
+  <title>Dinner questionnaire</title>
+  <style>
+    /* Scoped styles — no dependency on styles.css */
+    :root {
+      --bg:        #faf8f5;
+      --surface:   #ffffff;
+      --border:    #e0dbd4;
+      --text:      #2c2825;
+      --muted:     #7a736b;
+      --accent:    #6b7fa3;
+      --accent-l:  #edf0f7;
+      --radius:    12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+    }
+    .page { max-width: 540px; margin: 0 auto; padding: 24px 16px 48px; }
+
+    /* Header */
+    .q-header { margin-bottom: 28px; }
+    .q-header h1 { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+    .q-header p  { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
+
+    /* Section */
+    .q-section { margin-bottom: 24px; }
+    .q-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* Text inputs */
+    .q-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 1rem;
+      font-family: inherit;
+      color: var(--text);
+    }
+    .q-input:focus { outline: none; border-color: var(--accent); }
+    textarea.q-input { resize: vertical; min-height: 80px; }
+
+    /* Restriction pills */
+    .pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      padding: 8px 14px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 120ms ease;
+      min-height: 36px;
+    }
+    .pill.on {
+      background: var(--accent-l);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Spice buttons */
+    .spice-group { display: flex; gap: 6px; }
+    .spice-btn {
+      flex: 1;
+      padding: 10px 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.78rem;
+      text-align: center;
+      cursor: pointer;
+      line-height: 1.4;
+      min-height: 56px;
+    }
+    .spice-btn.on {
+      background: var(--accent-l);
+      border-color: var(--accent);
+    }
+    .spice-emoji { font-size: 1.1rem; display: block; }
+
+    /* Generate button */
+    .btn-generate {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      min-height: 52px;
+    }
+    .btn-generate:active { opacity: 0.85; }
+
+    /* Link result box */
+    #link-result {
+      display: none;
+      margin-top: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    #link-result.visible { display: block; }
+    .link-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+    .link-url {
+      font-size: 0.78rem;
+      word-break: break-all;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      font-family: monospace;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .btn-copy {
+      width: 100%;
+      padding: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-copy:active { background: var(--border); }
+
+    /* Receipt view */
+    #receipt-view { display: none; }
+    #receipt-view.visible { display: block; }
+    #form-view.hidden { display: none; }
+
+    .receipt-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .receipt-row { margin-bottom: 12px; }
+    .receipt-row:last-child { margin-bottom: 0; }
+    .receipt-key {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .receipt-val { font-size: 0.95rem; }
+    .receipt-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .receipt-pill {
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border-radius: 99px;
+      background: var(--accent-l);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .receipt-header { margin-bottom: 24px; }
+    .receipt-header h1 { font-size: 1.3rem; font-weight: 800; }
+    .receipt-header p  { font-size: 0.88rem; color: var(--muted); margin-top: 4px; }
+
+    .btn-back {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent-l);
+      color: var(--accent);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===== Form view ===== -->
+  <div id="form-view">
+    <header class="q-header">
+      <h1 id="q-title">Dinner questionnaire</h1>
+      <p id="q-subtitle">Takes 2 minutes &middot; helps me cook something you'll actually love</p>
+    </header>
+
+    <div class="q-section">
+      <label class="q-label" for="q-name">Your name</label>
+      <input class="q-input" type="text" id="q-name" placeholder="e.g. Alex" autocomplete="given-name">
+    </div>
+
+    <div class="q-section">
+      <span class="q-label">Dietary restrictions</span>
+      <div class="pill-group" id="restrictions-group">
+        <button class="pill" data-value="vegetarian">Vegetarian</button>
+        <button class="pill" data-value="vegan">Vegan</button>
+        <button class="pill" data-value="gluten-free">Gluten-free</button>
+        <button class="pill" data-value="dairy-free">Dairy-free</button>
+        <button class="pill" data-value="nut allergy">Nut allergy</button>
+        <button class="pill" data-value="shellfish allergy">Shellfish allergy</button>
+        <button class="pill" data-value="halal">Halal</button>
+        <button class="pill" data-value="kosher">Kosher</button>
+        <button class="pill" data-value="none">None</button>
+      </div>
+    </div>
+
+    <div class="q-section">
+      <span class="q-label">Spice tolerance</span>
+      <div class="spice-group" id="spice-group">
+        <button class="spice-btn" data-level="0"><span class="spice-emoji">🥛</span>No spice</button>
+        <button class="spice-btn" data-level="1"><span class="spice-emoji">🌶️</span>Mild</button>
+        <button class="spice-btn" data-level="2"><span class="spice-emoji">🌶️🌶️</span>Medium</button>
+        <button class="spice-btn" data-level="3"><span class="spice-emoji">🌶️🌶️🌶️</span>Hot</button>
+        <button class="spice-btn" data-level="4"><span class="spice-emoji">🔥</span>Bring it</button>
+      </div>
+    </div>
+
+    <div class="q-section">
+      <label class="q-label" for="q-loves">Foods I love</label>
+      <textarea class="q-input" id="q-loves" placeholder="e.g. pasta, anything with mushrooms, Thai food..."></textarea>
+    </div>
+
+    <div class="q-section">
+      <label class="q-label" for="q-dislikes">Hard nos</label>
+      <textarea class="q-input" id="q-dislikes" placeholder="e.g. cilantro, blue cheese, anything too fishy..."></textarea>
+    </div>
+
+    <div class="q-section">
+      <label class="q-label" for="q-notes">Anything else?</label>
+      <textarea class="q-input" id="q-notes" placeholder="Allergies, preferences, tonight's mood..."></textarea>
+    </div>
+
+    <button class="btn-generate" id="btn-generate">Generate my response link</button>
+
+    <div id="link-result">
+      <p class="link-label" id="link-friendly-label">Send this link back to <span id="host-name-span">Madison</span></p>
+      <div class="link-url" id="link-url-display"></div>
+      <button class="btn-copy" id="btn-copy-link">Copy link</button>
+    </div>
+  </div>
+
+  <!-- ===== Receipt view ===== -->
+  <div id="receipt-view">
+    <header class="receipt-header">
+      <h1>Your response</h1>
+      <p>Here's a summary of what you shared.</p>
+    </header>
+
+    <div class="receipt-card" id="receipt-content"></div>
+
+    <div id="receipt-link-box" style="margin-bottom:16px;">
+      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;font-weight:600;">
+        Your response link
+      </p>
+      <div class="link-url" id="receipt-url"></div>
+      <button class="btn-copy" id="btn-copy-receipt">Copy link</button>
+    </div>
+
+    <button class="btn-back" onclick="goToForm()">Fill out again</button>
+  </div>
+
+</div><!-- .page -->
+
+<script>
+  /* ============================================================
+     Questionnaire inline JS — fully self-contained
+     ============================================================ */
+
+  // Configuration — edit these strings to customise the page
+  const CONFIG = {
+    hostName: 'Madison',
+    title: "Madison's dinner questionnaire",
+    subtitle: "Takes 2 minutes \u00b7 helps me cook something you'll actually love"
+  };
+
+  const SPICE_LABELS = ['No spice', 'Mild', 'Medium', 'Hot', 'Bring it'];
+  const SPICE_EMOJI  = ['\uD83E\uDD5B', '\uD83C\uDF36\uFE0F', '\uD83C\uDF36\uFE0F\uD83C\uDF36\uFE0F', '\uD83C\uDF36\uFE0F\uD83C\uDF36\uFE0F\uD83C\uDF36\uFE0F', '\uD83D\uDD25'];
+
+  let selectedSpice = -1;
+
+  /* ---------- Encode / decode (handles non-ASCII) ---------- */
+  function encodeData(obj) {
+    const json = JSON.stringify(obj);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+
+  function decodeData(encoded) {
+    return JSON.parse(decodeURIComponent(escape(atob(encoded))));
+  }
+
+  /* ---------- Init ---------- */
+  function init() {
+    // Apply config
+    document.getElementById('q-title').textContent      = CONFIG.title;
+    document.getElementById('q-subtitle').textContent   = CONFIG.subtitle;
+    document.getElementById('host-name-span').textContent = CONFIG.hostName;
+    document.title = CONFIG.title;
+
+    // Check for receipt hash
+    const hash = window.location.hash;
+    if (hash.startsWith('#r=')) {
+      showReceipt(hash.slice(3));
+    } else {
+      showForm();
+    }
+
+    // Wire restriction pills
+    document.getElementById('restrictions-group').addEventListener('click', e => {
+      const btn = e.target.closest('.pill');
+      if (!btn) return;
+      if (btn.dataset.value === 'none') {
+        // Deselect all others
+        document.querySelectorAll('#restrictions-group .pill').forEach(p => p.classList.remove('on'));
+        btn.classList.add('on');
+      } else {
+        document.querySelector('#restrictions-group .pill[data-value="none"]').classList.remove('on');
+        btn.classList.toggle('on');
+      }
+    });
+
+    // Wire spice buttons
+    document.getElementById('spice-group').addEventListener('click', e => {
+      const btn = e.target.closest('.spice-btn');
+      if (!btn) return;
+      selectedSpice = parseInt(btn.dataset.level, 10);
+      document.querySelectorAll('.spice-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+    });
+
+    // Generate button
+    document.getElementById('btn-generate').addEventListener('click', generateLink);
+
+    // Copy link button
+    document.getElementById('btn-copy-link').addEventListener('click', () => {
+      copyText(document.getElementById('link-url-display').textContent, 'btn-copy-link');
+    });
+
+    // Copy receipt link button
+    document.getElementById('btn-copy-receipt').addEventListener('click', () => {
+      copyText(document.getElementById('receipt-url').textContent, 'btn-copy-receipt');
+    });
+  }
+
+  function showForm() {
+    document.getElementById('form-view').classList.remove('hidden');
+    document.getElementById('receipt-view').classList.remove('visible');
+  }
+
+  function goToForm() {
+    // Strip hash and reload to form
+    history.replaceState(null, '', window.location.pathname);
+    document.getElementById('receipt-view').classList.remove('visible');
+    document.getElementById('form-view').classList.remove('hidden');
+    document.getElementById('link-result').classList.remove('visible');
+  }
+
+  /* ---------- Collect & generate ---------- */
+  function collectData() {
+    const restrictions = Array.from(
+      document.querySelectorAll('#restrictions-group .pill.on')
+    ).map(b => b.dataset.value);
+
+    return {
+      name:         document.getElementById('q-name').value.trim(),
+      restrictions: restrictions,
+      spice:        selectedSpice >= 0 ? selectedSpice : 0,
+      loves:        document.getElementById('q-loves').value.trim(),
+      dislikes:     document.getElementById('q-dislikes').value.trim(),
+      notes:        document.getElementById('q-notes').value.trim()
+    };
+  }
+
+  function generateLink() {
+    const data = collectData();
+    if (!data.name) {
+      document.getElementById('q-name').focus();
+      return;
+    }
+
+    const encoded = encodeData(data);
+    const url = window.location.origin + window.location.pathname + '#r=' + encoded;
+
+    document.getElementById('link-url-display').textContent = url;
+    document.getElementById('link-result').classList.add('visible');
+    document.getElementById('link-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* ---------- Receipt view ---------- */
+  function showReceipt(encoded) {
+    document.getElementById('form-view').classList.add('hidden');
+
+    let data;
+    try {
+      data = decodeData(encoded);
+    } catch (e) {
+      // Malformed — show form
+      showForm();
+      return;
+    }
+
+    // Build receipt HTML
+    const spiceLabel = SPICE_LABELS[data.spice] || SPICE_LABELS[0];
+    const spiceEmoji = SPICE_EMOJI[data.spice]  || SPICE_EMOJI[0];
+
+    const restrictionPills = (data.restrictions || []).length
+      ? data.restrictions.map(r => `<span class="receipt-pill">${esc(r)}</span>`).join('')
+      : '<span style="color:var(--muted);font-size:0.9rem">None specified</span>';
+
+    document.getElementById('receipt-content').innerHTML = `
+      <div class="receipt-row">
+        <div class="receipt-key">Name</div>
+        <div class="receipt-val">${esc(data.name || '—')}</div>
+      </div>
+      <div class="receipt-row">
+        <div class="receipt-key">Dietary restrictions</div>
+        <div class="receipt-pills">${restrictionPills}</div>
+      </div>
+      <div class="receipt-row">
+        <div class="receipt-key">Spice tolerance</div>
+        <div class="receipt-val">${spiceEmoji} ${spiceLabel}</div>
+      </div>
+      ${data.loves ? `<div class="receipt-row"><div class="receipt-key">Foods I love</div><div class="receipt-val">${esc(data.loves)}</div></div>` : ''}
+      ${data.dislikes ? `<div class="receipt-row"><div class="receipt-key">Hard nos</div><div class="receipt-val">${esc(data.dislikes)}</div></div>` : ''}
+      ${data.notes ? `<div class="receipt-row"><div class="receipt-key">Anything else</div><div class="receipt-val">${esc(data.notes)}</div></div>` : ''}
+    `;
+
+    const url = window.location.href;
+    document.getElementById('receipt-url').textContent = url;
+    document.getElementById('receipt-view').classList.add('visible');
+  }
+
+  /* ---------- Helpers ---------- */
+  function esc(str) {
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  function copyText(text, btnId) {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById(btnId);
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  }
+
+  /* ---------- Boot ---------- */
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
