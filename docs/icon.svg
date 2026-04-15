@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
+  <rect width="192" height="192" rx="40" fill="#6b7fa3"/>
+  <!-- Pantry shelf lines -->
+  <rect x="32" y="80" width="128" height="8" rx="4" fill="#edf0f7"/>
+  <rect x="32" y="120" width="128" height="8" rx="4" fill="#edf0f7"/>
+  <!-- Items on shelves -->
+  <!-- Jar -->
+  <rect x="48" y="50" width="24" height="28" rx="5" fill="#faf8f5"/>
+  <rect x="52" y="44" width="16" height="8" rx="3" fill="#e0dbd4"/>
+  <!-- Can -->
+  <rect x="84" y="52" width="22" height="26" rx="4" fill="#faf8f5"/>
+  <ellipse cx="95" cy="52" rx="11" ry="4" fill="#e0dbd4"/>
+  <!-- Bottle -->
+  <rect x="120" y="46" width="16" height="32" rx="5" fill="#faf8f5"/>
+  <rect x="124" y="40" width="8" height="8" rx="2" fill="#e0dbd4"/>
+  <!-- Lower shelf items -->
+  <!-- Box -->
+  <rect x="48" y="90" width="28" height="28" rx="4" fill="#faf8f5"/>
+  <!-- Round tin -->
+  <ellipse cx="104" cy="110" rx="16" ry="8" fill="#faf8f5"/>
+  <rect x="88" y="95" width="32" height="15" rx="2" fill="#faf8f5"/>
+  <!-- Spice jar -->
+  <rect x="132" y="92" width="14" height="26" rx="4" fill="#faf8f5"/>
+</svg>

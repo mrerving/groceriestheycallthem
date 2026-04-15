@@ -1,0 +1,19 @@
+{
+  "name": "Pantry",
+  "short_name": "Pantry",
+  "description": "Meal planning with your pantry inventory and diner preferences",
+  "start_url": "/groceriestheycallthem/",
+  "scope": "/groceriestheycallthem/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#6b7fa3",
+  "background_color": "#faf8f5",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
