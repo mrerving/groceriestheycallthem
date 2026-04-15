@@ -2,7 +2,7 @@
    PANTRY PWA — service-worker.js
    ============================================================ */
 
-const CACHE_NAME = 'pantry-v1';
+const CACHE_NAME = 'pantry-v2';
 
 const CACHE_URLS = [
   './',
@@ -12,6 +12,8 @@ const CACHE_URLS = [
   './app.js',
   './manifest.json',
   './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
   'https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js'
 ];
 
