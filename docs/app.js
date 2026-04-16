@@ -999,6 +999,11 @@ function initEventListeners() {
   document.getElementById('scan-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) stopScan();
   });
+  // cancel fires on Escape (desktop) and hardware back (Android) — ensure clean teardown
+  document.getElementById('scan-overlay').addEventListener('cancel', e => {
+    e.preventDefault();
+    stopScan();
+  });
 
   /* ---- Share survey button ---- */
   document.getElementById('btn-share-survey').addEventListener('click', copySurveyLink);
