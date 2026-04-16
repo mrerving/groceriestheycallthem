@@ -617,6 +617,7 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 
 /* ---------- Barcode scan overlay ---------- */
 #scan-overlay {
+  display: none;
   position: fixed;
   inset: 0;
   background: #000;
