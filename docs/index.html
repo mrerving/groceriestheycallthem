@@ -48,7 +48,10 @@
     <section class="tab-panel" id="tab-diners">
       <div class="page-header">
         <h2>Diners</h2>
-        <button id="btn-add-profile" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">+ Occasion</button>
+        <div style="display:flex;gap:8px">
+          <button id="btn-share-survey" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">Share survey</button>
+          <button id="btn-add-profile" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">+ Occasion</button>
+        </div>
       </div>
       <div id="diners-list"></div>
     </section>
@@ -264,6 +267,72 @@
           <button class="spice-btn" data-level="2">🌶️🌶️<br>Medium</button>
           <button class="spice-btn" data-level="3">🌶️🌶️🌶️<br>Hot</button>
           <button class="spice-btn" data-level="4">🔥<br>Bring it</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Cuisine vibes</label>
+        <div class="pill-group" id="diner-cuisines-group">
+          <button class="pill-toggle" data-value="Italian">Italian</button>
+          <button class="pill-toggle" data-value="Mexican">Mexican</button>
+          <button class="pill-toggle" data-value="Thai">Thai</button>
+          <button class="pill-toggle" data-value="Japanese">Japanese</button>
+          <button class="pill-toggle" data-value="Chinese">Chinese</button>
+          <button class="pill-toggle" data-value="Indian">Indian</button>
+          <button class="pill-toggle" data-value="Mediterranean">Mediterranean</button>
+          <button class="pill-toggle" data-value="American">American</button>
+          <button class="pill-toggle" data-value="Korean">Korean</button>
+          <button class="pill-toggle" data-value="Middle Eastern">Middle Eastern</button>
+          <button class="pill-toggle" data-value="Vietnamese">Vietnamese</button>
+          <button class="pill-toggle" data-value="Greek">Greek</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Protein preferences</label>
+        <div class="pill-group" id="diner-proteins-group">
+          <button class="pill-toggle" data-value="Chicken">Chicken</button>
+          <button class="pill-toggle" data-value="Beef">Beef</button>
+          <button class="pill-toggle" data-value="Pork">Pork</button>
+          <button class="pill-toggle" data-value="Fish">Fish</button>
+          <button class="pill-toggle" data-value="Shrimp/Seafood">Shrimp/Seafood</button>
+          <button class="pill-toggle" data-value="Tofu/Tempeh">Tofu/Tempeh</button>
+          <button class="pill-toggle" data-value="Eggs">Eggs</button>
+          <button class="pill-toggle" data-value="Lamb">Lamb</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Meal formats</label>
+        <div class="pill-group" id="diner-mealformats-group">
+          <button class="pill-toggle" data-value="Soups &amp; stews">Soups &amp; stews</button>
+          <button class="pill-toggle" data-value="Pasta &amp; grains">Pasta &amp; grains</button>
+          <button class="pill-toggle" data-value="Grilled mains">Grilled mains</button>
+          <button class="pill-toggle" data-value="Salads">Salads</button>
+          <button class="pill-toggle" data-value="Sandwiches &amp; wraps">Sandwiches &amp; wraps</button>
+          <button class="pill-toggle" data-value="Stir-fries">Stir-fries</button>
+          <button class="pill-toggle" data-value="Casseroles">Casseroles</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Polarizing foods they actually like</label>
+        <div class="pill-group" id="diner-polarizing-group">
+          <button class="pill-toggle" data-value="Cilantro">Cilantro</button>
+          <button class="pill-toggle" data-value="Anchovies">Anchovies</button>
+          <button class="pill-toggle" data-value="Liver">Liver</button>
+          <button class="pill-toggle" data-value="Blue cheese">Blue cheese</button>
+          <button class="pill-toggle" data-value="Olives">Olives</button>
+          <button class="pill-toggle" data-value="Mushrooms">Mushrooms</button>
+          <button class="pill-toggle" data-value="Eggplant">Eggplant</button>
+          <button class="pill-toggle" data-value="Brussels sprouts">Brussels sprouts</button>
+          <button class="pill-toggle" data-value="Beets">Beets</button>
+          <button class="pill-toggle" data-value="Raw onion">Raw onion</button>
+          <button class="pill-toggle" data-value="Sardines/herring">Sardines/herring</button>
+          <button class="pill-toggle" data-value="Okra">Okra</button>
+          <button class="pill-toggle" data-value="Fennel">Fennel</button>
+          <button class="pill-toggle" data-value="Lamb">Lamb</button>
+          <button class="pill-toggle" data-value="Natto/fermented">Natto/fermented</button>
         </div>
       </div>
 
