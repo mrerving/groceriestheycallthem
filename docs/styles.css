@@ -621,7 +621,6 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
   inset: 0;
   background: #000;
   z-index: 999;
-  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -630,6 +629,10 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
   max-height: 100dvh;
   width: 100%;
   margin: 0;
+}
+
+#scan-overlay[open] {
+  display: flex;
 }
 
 #scan-video {
