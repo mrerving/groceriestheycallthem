@@ -154,9 +154,9 @@ function showToast(msg, duration = 3000) {
    C. INVENTORY TAB
    ============================================================ */
 
-const LOCATION_LABELS = { pantry: 'Pantry', fridge: 'Fridge', freezer: 'Freezer' };
-const LOCATION_ICONS  = { pantry: '🗄️', fridge: '🧊', freezer: '❄️' };
-const LOCATION_ORDER  = ['pantry', 'fridge', 'freezer'];
+const LOCATION_LABELS = { pantry: 'Pantry', spice: 'Spice Cabinet', fridge: 'Fridge', freezer: 'Freezer' };
+const LOCATION_ICONS  = { pantry: '🗄️', spice: '🌿', fridge: '🧊', freezer: '❄️' };
+const LOCATION_ORDER  = ['pantry', 'spice', 'fridge', 'freezer'];
 
 function renderInventory(filter) {
   if (filter !== undefined) currentInventoryFilter = filter;
