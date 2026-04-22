@@ -627,6 +627,10 @@ function openAddDinerSheet(profileId) {
   document.getElementById('diner-delete-btn').style.display = 'none';
   setDinerRestrictions([]);
   setDinerSpice(0);
+  setDinerMultiSelect('diner-cuisines-group', []);
+  setDinerMultiSelect('diner-proteins-group', []);
+  setDinerMultiSelect('diner-mealformats-group', []);
+  setDinerMultiSelect('diner-polarizing-group', []);
   document.getElementById('diner-sheet').showModal();
 }
 
@@ -643,12 +647,45 @@ function openEditDinerSheet(profileId, diner) {
   document.getElementById('diner-delete-btn').style.display = '';
   setDinerRestrictions(diner.restrictions || []);
   setDinerSpice(diner.spice ?? 0);
+  setDinerMultiSelect('diner-cuisines-group', diner.cuisines || []);
+  setDinerMultiSelect('diner-proteins-group', diner.proteins || []);
+  setDinerMultiSelect('diner-mealformats-group', diner.mealFormats || []);
+  setDinerMultiSelect('diner-polarizing-group', diner.polarizing || []);
   document.getElementById('diner-sheet').showModal();
 }
 
 function setDinerRestrictions(selected) {
   document.querySelectorAll('#diner-restrictions-group .pill-toggle').forEach(btn => {
     btn.classList.toggle('selected', selected.includes(btn.dataset.value));
+  });
+}
+
+function setDinerMultiSelect(groupId, values) {
+  document.querySelectorAll('#' + groupId + ' .pill-toggle').forEach(btn => {
+    btn.classList.toggle('selected', values.includes(btn.dataset.value));
+  });
+}
+
+function getSelectedDinerValues(groupId) {
+  return Array.from(
+    document.querySelectorAll('#' + groupId + ' .pill-toggle.selected')
+  ).map(b => b.dataset.value);
+}
+
+function copySurveyLink() {
+  const url = new URL('questionnaire.html', window.location.href).href;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('Survey link copied!');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Survey link copied!');
   });
 }
 
@@ -672,6 +709,10 @@ function saveDiner() {
     name,
     restrictions: getSelectedRestrictions(),
     spice:        currentDinerSpice,
+    cuisines:     getSelectedDinerValues('diner-cuisines-group'),
+    proteins:     getSelectedDinerValues('diner-proteins-group'),
+    mealFormats:  getSelectedDinerValues('diner-mealformats-group'),
+    polarizing:   getSelectedDinerValues('diner-polarizing-group'),
     loves:        document.getElementById('diner-loves').value.trim(),
     dislikes:     document.getElementById('diner-dislikes').value.trim(),
     notes:        document.getElementById('diner-notes').value.trim()
@@ -719,6 +760,10 @@ function prefillDinerForm(data) {
   if (data.notes)    document.getElementById('diner-notes').value    = data.notes;
   setDinerRestrictions(data.restrictions || []);
   setDinerSpice(data.spice ?? 0);
+  setDinerMultiSelect('diner-cuisines-group', data.cuisines || []);
+  setDinerMultiSelect('diner-proteins-group', data.proteins || []);
+  setDinerMultiSelect('diner-mealformats-group', data.mealFormats || []);
+  setDinerMultiSelect('diner-polarizing-group', data.polarizing || []);
 }
 
 /* ============================================================
@@ -954,6 +999,14 @@ function initEventListeners() {
   document.getElementById('scan-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) stopScan();
   });
+  // cancel fires on Escape (desktop) and hardware back (Android) — ensure clean teardown
+  document.getElementById('scan-overlay').addEventListener('cancel', e => {
+    e.preventDefault();
+    stopScan();
+  });
+
+  /* ---- Share survey button ---- */
+  document.getElementById('btn-share-survey').addEventListener('click', copySurveyLink);
 
   /* ---- Profile sheet ---- */
   document.getElementById('btn-add-profile').addEventListener('click', openAddProfileSheet);
@@ -989,6 +1042,14 @@ function initEventListeners() {
   document.getElementById('diner-spice-group').addEventListener('click', e => {
     const btn = e.target.closest('.spice-btn');
     if (btn) setDinerSpice(parseInt(btn.dataset.level, 10));
+  });
+
+  // Generic multi-select pill groups
+  ['diner-cuisines-group', 'diner-proteins-group', 'diner-mealformats-group', 'diner-polarizing-group'].forEach(groupId => {
+    document.getElementById(groupId).addEventListener('click', e => {
+      const btn = e.target.closest('.pill-toggle');
+      if (btn) btn.classList.toggle('selected');
+    });
   });
 
   // Paste questionnaire link
