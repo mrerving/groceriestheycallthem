@@ -2,7 +2,7 @@
    PANTRY PWA — service-worker.js
    ============================================================ */
 
-const CACHE_NAME = 'pantry-v4';
+const CACHE_NAME = 'pantry-v5';
 
 const CACHE_URLS = [
   './',
