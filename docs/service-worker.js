@@ -2,7 +2,7 @@
    PANTRY PWA — service-worker.js
    ============================================================ */
 
-const CACHE_NAME = 'pantry-v2';
+const CACHE_NAME = 'pantry-v3';
 
 const CACHE_URLS = [
   './',
@@ -19,7 +19,8 @@ const CACHE_URLS = [
 
 // Hosts that must never be cached (live data / external APIs)
 const NETWORK_ONLY_HOSTS = [
-  'world.openfoodfacts.org'
+  'world.openfoodfacts.org',
+  'api.anthropic.com'
 ];
 
 /* ---------- Install ---------- */
