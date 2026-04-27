@@ -767,6 +767,182 @@ function prefillDinerForm(data) {
 }
 
 /* ============================================================
+   E.5 RECEIPT SCANNING
+   ============================================================ */
+
+const VALID_CATEGORIES = ['produce','dairy','meat','grains','canned','condiments','other'];
+
+const RECEIPT_PROMPT =
+  'You are a grocery receipt parser. Extract purchased grocery items from this receipt image.\n\n' +
+  'Return ONLY a JSON object with this exact structure, no other text:\n' +
+  '{"items":[{"name":"...","quantity":"...","unit":"...","category":"..."}]}\n\n' +
+  'Rules:\n' +
+  '- Include only food and grocery items. Skip tax lines, subtotals, totals, savings/discount-only lines, membership fees, non-food items (batteries, household, pharmacy), and deposit charges.\n' +
+  '- "name": Clean product name. Remove store item codes and UPC numbers. For Sam\'s Club, strip item numbers and expand abbreviations (e.g. "MM OLV OIL" → "Member\'s Mark Olive Oil"). For Aldi, expand short all-caps names where obvious (e.g. "BROC CRWN" → "Broccoli Crown").\n' +
+  '- "quantity": Numeric quantity purchased. For produce priced by weight (e.g. "1.43 lb"), use the weight. For "2 @ $X" lines, use "2". Default: "1".\n' +
+  '- "unit": Use natural units — lb, oz, ct, pk, bag, box, can, jar, bottle — or "" if unclear. For weight-priced produce use "lb". For Sam\'s Club club packs use "pk".\n' +
+  '- "category": One of: produce, dairy, meat, grains, canned, condiments, other.\n' +
+  '- Skip Publix BOGO savings lines. Skip any line that is only a price or code with no readable product name.';
+
+let receiptCandidates = [];
+
+function getApiKey() {
+  return Storage.getSettings().anthropicApiKey || '';
+}
+
+function saveApiKey(key) {
+  const s = Storage.getSettings();
+  s.anthropicApiKey = key.trim();
+  Storage.saveSettings(s);
+}
+
+function processReceiptImage(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl  = e.target.result;
+    const base64   = dataUrl.split(',')[1];
+    const mimeType = dataUrl.split(';')[0].slice(5);
+    showToast('Scanning receipt…', 10000);
+    callClaudeVision(base64, mimeType);
+  };
+  reader.onerror = () => showToast('Could not read image file');
+  reader.readAsDataURL(file);
+}
+
+async function callClaudeVision(base64, mimeType) {
+  const apiKey = getApiKey();
+
+  let response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            { type: 'text', text: RECEIPT_PROMPT }
+          ]
+        }]
+      })
+    });
+  } catch {
+    showToast('Network error — could not reach Anthropic API');
+    return;
+  }
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      showToast('Invalid API key — check API settings');
+    } else if (response.status === 429) {
+      showToast('Rate limit reached — try again in a moment');
+    } else {
+      showToast(`API error ${response.status}: ${errBody?.error?.message || 'unknown'}`);
+    }
+    return;
+  }
+
+  const data = await response.json();
+  parseReceiptResponse(data);
+}
+
+function parseReceiptResponse(data) {
+  try {
+    const raw      = data.content?.[0]?.text || '';
+    const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const parsed   = JSON.parse(jsonText);
+    const rawItems = parsed?.items;
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      showToast('No grocery items found on receipt');
+      return;
+    }
+
+    const candidates = rawItems.map(it => ({
+      name:     String(it.name     || '').trim(),
+      quantity: String(it.quantity || '1').trim(),
+      unit:     String(it.unit     || '').trim(),
+      category: VALID_CATEGORIES.includes(it.category) ? it.category : 'other',
+      location: 'pantry'
+    })).filter(it => it.name.length > 0);
+
+    if (candidates.length === 0) {
+      showToast('Could not extract any items — try a clearer photo');
+      return;
+    }
+
+    openReceiptReviewSheet(candidates);
+  } catch {
+    showToast('Could not parse receipt — try again or use a clearer photo');
+  }
+}
+
+function openReceiptReviewSheet(candidates) {
+  receiptCandidates = candidates;
+  const list = document.getElementById('receipt-items-list');
+
+  list.innerHTML = candidates.map((item, i) => `
+    <div class="receipt-item-row">
+      <label class="receipt-item-label">
+        <input type="checkbox" class="receipt-item-check" data-index="${i}" checked>
+        <div class="receipt-item-info">
+          <span class="receipt-item-name">${esc(item.name)}</span>
+          <span class="receipt-item-meta">
+            ${esc([item.quantity, item.unit].filter(Boolean).join(' '))}
+            &middot; <span class="receipt-item-cat">${esc(item.category)}</span>
+          </span>
+        </div>
+      </label>
+    </div>`).join('');
+
+  updateReceiptAddButton();
+  document.getElementById('receipt-review-sheet').showModal();
+}
+
+function updateReceiptAddButton() {
+  const checked = document.querySelectorAll('.receipt-item-check:checked').length;
+  const btn     = document.getElementById('receipt-add-btn');
+  btn.textContent = `Add ${checked} item${checked !== 1 ? 's' : ''}`;
+  btn.disabled    = checked === 0;
+}
+
+function confirmReceiptItems() {
+  const now = new Date().toISOString();
+  const newItems = Array.from(
+    document.querySelectorAll('.receipt-item-check:checked')
+  ).map(el => {
+    const c = receiptCandidates[parseInt(el.dataset.index, 10)];
+    return {
+      id:        generateId(),
+      name:      c.name,
+      location:  c.location || 'pantry',
+      category:  c.category || 'other',
+      quantity:  c.quantity || '',
+      unit:      c.unit     || '',
+      expiry:    null,
+      notes:     '',
+      createdAt: now,
+      updatedAt: now
+    };
+  });
+
+  items.push(...newItems);
+  Storage.saveItems(items);
+  document.getElementById('receipt-review-sheet').close();
+  renderInventory();
+  showToast(`Added ${newItems.length} item${newItems.length !== 1 ? 's' : ''} from receipt`);
+}
+
+/* ============================================================
    F. PLAN TAB
    ============================================================ */
 
@@ -1078,6 +1254,51 @@ function initEventListeners() {
 
   document.getElementById('btn-copy-prompt').addEventListener('click', copyPrompt);
   document.getElementById('btn-open-claude').addEventListener('click', openInClaude);
+
+  /* ---- Receipt scanning ---- */
+  document.getElementById('btn-scan-receipt').addEventListener('click', () => {
+    document.getElementById('settings-menu').style.display = 'none';
+    if (!getApiKey()) {
+      showToast('Add your Anthropic API key in API settings first');
+      document.getElementById('api-key-input').value = '';
+      document.getElementById('settings-sheet').showModal();
+      return;
+    }
+    document.getElementById('receipt-file-input').click();
+  });
+  document.getElementById('receipt-file-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) processReceiptImage(file);
+    e.target.value = '';
+  });
+
+  /* ---- API settings sheet ---- */
+  document.getElementById('btn-api-settings').addEventListener('click', () => {
+    document.getElementById('settings-menu').style.display = 'none';
+    document.getElementById('api-key-input').value = getApiKey();
+    document.getElementById('settings-sheet').showModal();
+  });
+  document.getElementById('settings-cancel-btn').addEventListener('click', () => {
+    document.getElementById('settings-sheet').close();
+  });
+  document.getElementById('settings-sheet').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+  document.getElementById('api-key-save-btn').addEventListener('click', () => {
+    saveApiKey(document.getElementById('api-key-input').value);
+    document.getElementById('settings-sheet').close();
+    showToast('API key saved');
+  });
+
+  /* ---- Receipt review sheet ---- */
+  document.getElementById('receipt-review-cancel-btn').addEventListener('click', () => {
+    document.getElementById('receipt-review-sheet').close();
+  });
+  document.getElementById('receipt-review-sheet').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+  document.getElementById('receipt-items-list').addEventListener('change', updateReceiptAddButton);
+  document.getElementById('receipt-add-btn').addEventListener('click', confirmReceiptItems);
 }
 
 /* ============================================================

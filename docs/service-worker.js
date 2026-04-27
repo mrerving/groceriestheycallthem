@@ -19,7 +19,8 @@ const CACHE_URLS = [
 
 // Hosts that must never be cached (live data / external APIs)
 const NETWORK_ONLY_HOSTS = [
-  'world.openfoodfacts.org'
+  'world.openfoodfacts.org',
+  'api.anthropic.com'
 ];
 
 /* ---------- Install ---------- */
