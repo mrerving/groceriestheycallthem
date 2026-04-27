@@ -104,51 +104,53 @@ function migrateData() {
 }
 
 /* ============================================================
-   GIST SYNC
+   GITHUB SYNC  (Contents API — stores data/pantry-data.json in repo)
    ============================================================ */
 
-const GistSync = {
+const GitHubSync = {
+  _sha: null,
+
   _cfg() {
     const s = Storage.getSettings();
-    return { token: s.githubGistToken || '', gistId: s.githubGistId || '' };
+    const parts = (s.githubRepo || '').split('/');
+    return {
+      token:    s.githubToken    || '',
+      owner:    parts[0]         || '',
+      repo:     parts[1]         || '',
+      filePath: s.githubFilePath || 'data/pantry-data.json'
+    };
   },
 
-  async push() {
-    const { token, gistId } = this._cfg();
-    if (!token || !gistId) return;
-    try {
-      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github+json'
-        },
-        body: JSON.stringify({ files: { 'pantry-data.json': {
-          content: JSON.stringify({ version: 1, items, diners, profiles }, null, 2)
-        }}})
-      });
-      if (!res.ok) throw new Error(res.status);
-      const s = Storage.getSettings();
-      s.githubGistLastSync = new Date().toISOString();
-      Storage.saveSettings(s);
-      showToast('Synced to Gist ✓');
-    } catch {
-      showToast('Sync failed — working offline');
-    }
+  _url() {
+    const { owner, repo, filePath } = this._cfg();
+    return `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+  },
+
+  _encode(data) {
+    const json = JSON.stringify(data, null, 2);
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  },
+
+  _decode(b64) {
+    const bin   = atob(b64.replace(/\s/g, ''));
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
   },
 
   async pull() {
-    const { token, gistId } = this._cfg();
-    if (!token || !gistId) return;
+    const { token, owner, repo } = this._cfg();
+    if (!token || !owner || !repo) return;
     try {
-      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      const res = await fetch(this._url(), {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
       });
       if (!res.ok) throw new Error(res.status);
       const data   = await res.json();
-      const parsed = JSON.parse(data.files?.['pantry-data.json']?.content || 'null');
-      if (!parsed) return;
+      this._sha    = data.sha;
+      const parsed = JSON.parse(this._decode(data.content));
       if (Array.isArray(parsed.items))    { items    = parsed.items;    Storage.saveItems(items); }
       if (Array.isArray(parsed.diners))   { diners   = parsed.diners;   Storage.saveDiners(diners); }
       if (Array.isArray(parsed.profiles)) { profiles = parsed.profiles; Storage.saveProfiles(profiles); }
@@ -158,35 +160,41 @@ const GistSync = {
     } catch { /* offline — keep local data */ }
   },
 
-  async create() {
-    const { token } = this._cfg();
-    if (!token) { showToast('Enter a GitHub token first'); return; }
+  async push() {
+    const { token, owner, repo } = this._cfg();
+    if (!token || !owner || !repo) return;
+    if (!this._sha) {
+      try {
+        const r = await fetch(this._url(), {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+        });
+        if (r.ok) { const d = await r.json(); this._sha = d.sha; }
+      } catch { /* new file — no SHA needed */ }
+    }
+    const body = {
+      message: `Update pantry data ${new Date().toISOString().slice(0, 10)}`,
+      content: this._encode({ version: 1, items, diners, profiles })
+    };
+    if (this._sha) body.sha = this._sha;
     try {
-      const res = await fetch('https://api.github.com/gists', {
-        method: 'POST',
+      const res = await fetch(this._url(), {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/vnd.github+json'
         },
-        body: JSON.stringify({
-          description: 'Pantry app data',
-          public: false,
-          files: { 'pantry-data.json': {
-            content: JSON.stringify({ version: 1, items, diners, profiles }, null, 2)
-          }}
-        })
+        body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
-      const s = Storage.getSettings();
-      s.githubGistId = data.id;
-      s.githubGistLastSync = new Date().toISOString();
+      this._sha  = data.content?.sha;
+      const s    = Storage.getSettings();
+      s.githubLastSync = new Date().toISOString();
       Storage.saveSettings(s);
-      document.getElementById('gist-id-input').value = data.id;
-      showToast('Gist created!');
+      showToast('Synced to GitHub ✓');
     } catch {
-      showToast('Failed to create Gist — check your token');
+      showToast('Sync failed — working offline');
     }
   }
 };
@@ -438,7 +446,7 @@ function saveItem() {
     });
   }
   Storage.saveItems(items);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('item-sheet').close();
   renderInventory();
 }
@@ -446,7 +454,7 @@ function saveItem() {
 function deleteItem(id) {
   items = items.filter(i => i.id !== id);
   Storage.saveItems(items);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('item-sheet').close();
   renderInventory();
 }
@@ -742,7 +750,7 @@ function saveProfile() {
     profiles.push({ id: generateId(), name, tags, dinerIds: [], createdAt: new Date().toISOString() });
   }
   Storage.saveProfiles(profiles);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('profile-sheet').close();
   renderDiners();
 }
@@ -750,7 +758,7 @@ function saveProfile() {
 function deleteProfile(id) {
   profiles = profiles.filter(p => p.id !== id);
   Storage.saveProfiles(profiles);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('profile-sheet').close();
   renderDiners();
 }
@@ -868,7 +876,7 @@ function saveDiner() {
     diners.push({ id: generateId(), ...dinerData });
   }
   Storage.saveDiners(diners);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('diner-sheet').close();
   renderDiners();
 }
@@ -880,7 +888,7 @@ function deleteDiner() {
   });
   Storage.saveDiners(diners);
   Storage.saveProfiles(profiles);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('diner-sheet').close();
   renderDiners();
 }
@@ -917,7 +925,7 @@ function saveDinerPicker() {
     document.querySelectorAll('.diner-picker-check:checked')
   ).map(cb => cb.dataset.dinerId);
   Storage.saveProfiles(profiles);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('diner-picker-sheet').close();
   renderDiners();
 }
@@ -977,23 +985,26 @@ function saveApiKey(key) {
   Storage.saveSettings(s);
 }
 
-function openGistSheet() {
+function openGitHubSheet() {
   const s = Storage.getSettings();
-  document.getElementById('gist-token-input').value = s.githubGistToken || '';
-  document.getElementById('gist-id-input').value    = s.githubGistId    || '';
-  const last = s.githubGistLastSync;
-  document.getElementById('gist-last-sync').textContent = last
+  document.getElementById('github-token-input').value    = s.githubToken    || '';
+  document.getElementById('github-repo-input').value     = s.githubRepo     || '';
+  document.getElementById('github-filepath-input').value = s.githubFilePath || 'data/pantry-data.json';
+  const last = s.githubLastSync;
+  document.getElementById('github-last-sync').textContent = last
     ? `Last synced: ${new Date(last).toLocaleString()}` : '';
-  document.getElementById('gist-sheet').showModal();
+  document.getElementById('github-sheet').showModal();
 }
 
-function saveGistSettings() {
+function saveGitHubSettings() {
   const s = Storage.getSettings();
-  s.githubGistToken = document.getElementById('gist-token-input').value.trim();
-  s.githubGistId    = document.getElementById('gist-id-input').value.trim();
+  s.githubToken    = document.getElementById('github-token-input').value.trim();
+  s.githubRepo     = document.getElementById('github-repo-input').value.trim();
+  s.githubFilePath = document.getElementById('github-filepath-input').value.trim() || 'data/pantry-data.json';
   Storage.saveSettings(s);
-  document.getElementById('gist-sheet').close();
-  showToast('Gist settings saved');
+  GitHubSync._sha  = null; // reset cached SHA when settings change
+  document.getElementById('github-sheet').close();
+  showToast('GitHub sync settings saved');
 }
 
 function processReceiptImage(file) {
@@ -1137,7 +1148,7 @@ function confirmReceiptItems() {
 
   items.push(...newItems);
   Storage.saveItems(items);
-  GistSync.push();
+  GitHubSync.push();
   document.getElementById('receipt-review-sheet').close();
   renderInventory();
   showToast(`Added ${newItems.length} item${newItems.length !== 1 ? 's' : ''} from receipt`);
@@ -1496,31 +1507,27 @@ function initEventListeners() {
     showToast('API key saved');
   });
 
-  /* ---- Gist settings sheet ---- */
-  document.getElementById('btn-gist-settings').addEventListener('click', () => {
+  /* ---- GitHub sync settings sheet ---- */
+  document.getElementById('btn-github-settings').addEventListener('click', () => {
     document.getElementById('settings-menu').style.display = 'none';
-    openGistSheet();
+    openGitHubSheet();
   });
-  document.getElementById('gist-cancel-btn').addEventListener('click', () => {
-    document.getElementById('gist-sheet').close();
+  document.getElementById('github-cancel-btn').addEventListener('click', () => {
+    document.getElementById('github-sheet').close();
   });
-  document.getElementById('gist-sheet').addEventListener('click', e => {
+  document.getElementById('github-sheet').addEventListener('click', e => {
     if (e.target === e.currentTarget) e.currentTarget.close();
   });
-  document.getElementById('gist-save-btn').addEventListener('click', saveGistSettings);
-  document.getElementById('gist-create-btn').addEventListener('click', () => {
-    saveGistSettings();
-    GistSync.create();
-  });
-  document.getElementById('gist-pull-btn').addEventListener('click', async () => {
-    saveGistSettings();
-    await GistSync.pull();
-    document.getElementById('gist-last-sync').textContent =
+  document.getElementById('github-save-btn').addEventListener('click', saveGitHubSettings);
+  document.getElementById('github-pull-btn').addEventListener('click', async () => {
+    saveGitHubSettings();
+    await GitHubSync.pull();
+    document.getElementById('github-last-sync').textContent =
       `Last synced: ${new Date().toLocaleString()}`;
   });
-  document.getElementById('gist-push-btn').addEventListener('click', () => {
-    saveGistSettings();
-    GistSync.push();
+  document.getElementById('github-push-btn').addEventListener('click', () => {
+    saveGitHubSettings();
+    GitHubSync.push();
   });
 
   /* ---- Diner picker sheet ---- */
@@ -1555,5 +1562,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initBarcodeScanner();
   initEventListeners();
   showTab('inventory');
-  GistSync.pull();
+  GitHubSync.pull();
 });

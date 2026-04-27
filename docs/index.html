@@ -35,7 +35,7 @@
           <button id="btn-import-trigger">📥 Import JSON</button>
           <button id="btn-scan-receipt">🧾 Scan receipt</button>
           <button id="btn-api-settings">🔑 API settings</button>
-          <button id="btn-gist-settings">🔗 Gist sync</button>
+          <button id="btn-github-settings">🔗 GitHub sync</button>
         </div>
       </div>
       <div class="filter-bar" id="inventory-filter-bar">
@@ -408,29 +408,32 @@
     <button id="scan-close">✕</button>
   </dialog>
 
-  <!-- ===== Gist sync settings sheet ===== -->
-  <dialog id="gist-sheet">
+  <!-- ===== GitHub sync settings sheet ===== -->
+  <dialog id="github-sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
-      <h3>GitHub Gist sync</h3>
-      <button class="btn-ghost" id="gist-cancel-btn" style="padding:8px">✕</button>
+      <h3>GitHub sync</h3>
+      <button class="btn-ghost" id="github-cancel-btn" style="padding:8px">✕</button>
     </div>
     <div class="sheet-body">
       <div class="field">
-        <label for="gist-token-input">GitHub personal access token</label>
-        <input type="password" id="gist-token-input" placeholder="ghp_..." autocomplete="off">
-        <p class="attribution-note" style="margin-top:4px">Needs "gist" scope. Stored only in this browser, never synced.</p>
+        <label for="github-token-input">GitHub personal access token</label>
+        <input type="password" id="github-token-input" placeholder="ghp_..." autocomplete="off">
+        <p class="attribution-note" style="margin-top:4px">Needs "contents" scope on the repo. Stored only in this browser, never synced.</p>
       </div>
       <div class="field">
-        <label for="gist-id-input">Gist ID</label>
-        <input type="text" id="gist-id-input" placeholder="Paste an existing Gist ID, or create one below">
+        <label for="github-repo-input">Repository</label>
+        <input type="text" id="github-repo-input" placeholder="owner/repo">
       </div>
-      <div id="gist-last-sync" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px"></div>
+      <div class="field">
+        <label for="github-filepath-input">Data file path</label>
+        <input type="text" id="github-filepath-input" placeholder="data/pantry-data.json">
+      </div>
+      <div id="github-last-sync" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px"></div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-        <button id="gist-save-btn" class="btn btn-primary">Save settings</button>
-        <button id="gist-create-btn" class="btn btn-secondary">Create new Gist</button>
-        <button id="gist-pull-btn" class="btn btn-secondary">Pull from Gist</button>
-        <button id="gist-push-btn" class="btn btn-secondary">Push to Gist</button>
+        <button id="github-save-btn" class="btn btn-primary">Save settings</button>
+        <button id="github-pull-btn" class="btn btn-secondary">Pull from GitHub</button>
+        <button id="github-push-btn" class="btn btn-secondary">Push to GitHub</button>
       </div>
     </div>
   </dialog>
