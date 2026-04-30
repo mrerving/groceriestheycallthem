@@ -784,3 +784,34 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
   background: var(--bg);
   text-align: center;
 }
+
+/* ---------- Sync status indicator ---------- */
+.sync-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  align-self: center;
+  white-space: nowrap;
+  transition: opacity 300ms ease;
+}
+.sync-status[data-sync-state="idle"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.sync-status[data-sync-state="syncing"] {
+  opacity: 1;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+}
+.sync-status[data-sync-state="ok"] {
+  opacity: 1;
+  color: var(--fresh-text);
+  background: var(--fresh-bg);
+}
+.sync-status[data-sync-state="error"] {
+  opacity: 1;
+  color: var(--expired-text);
+  background: var(--expired-bg);
+}

@@ -12,7 +12,9 @@
 const STORAGE_KEYS = {
   ITEMS:    'pantry_items',
   PROFILES: 'pantry_profiles',
-  SETTINGS: 'pantry_settings'
+  SETTINGS: 'pantry_settings',
+  SYNC_PAT: 'pantry_sync_pat',
+  SYNC_ID:  'pantry_sync_gist_id'
 };
 
 function generateId() {
@@ -60,8 +62,140 @@ const Storage = {
   getProfiles:  () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILES) || '[]'); } catch { return []; } },
   saveProfiles: (v) => { try { localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(v)); } catch { showToast('Storage full — could not save'); } },
   getSettings:  () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}'); } catch { return {}; } },
-  saveSettings: (v) => { localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(v)); }
+  saveSettings: (v) => { localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(v)); },
+  getPat:       () => { try { return localStorage.getItem(STORAGE_KEYS.SYNC_PAT)  || ''; } catch { return ''; } },
+  savePat:      (v) => { try { localStorage.setItem(STORAGE_KEYS.SYNC_PAT,  v); } catch {} },
+  getGistId:    () => { try { return localStorage.getItem(STORAGE_KEYS.SYNC_ID)   || ''; } catch { return ''; } },
+  saveGistId:   (v) => { try { localStorage.setItem(STORAGE_KEYS.SYNC_ID, v); } catch {} }
 };
+
+/* ============================================================
+   A2. GIST SYNC
+   ============================================================ */
+
+const GistSync = (() => {
+  const GIST_API = 'https://api.github.com/gists';
+  const FILENAME = 'pantry-data.json';
+
+  let _syncTimer = null;
+  let _syncEl    = null;
+
+  function _headers(pat) {
+    return {
+      'Authorization': `Bearer ${pat}`,
+      'Content-Type':  'application/json',
+      'Accept':        'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+  }
+
+  function _payload() {
+    return JSON.stringify({
+      description: 'Pantry app data',
+      public: false,
+      files: {
+        [FILENAME]: {
+          content: JSON.stringify({ items, profiles, settings }, null, 2)
+        }
+      }
+    });
+  }
+
+  function _setStatus(state) {
+    if (!_syncEl) return;
+    _syncEl.dataset.syncState = state;
+    const labels = { idle: '', syncing: 'Syncing…', ok: 'Synced', error: 'Sync failed' };
+    _syncEl.textContent = labels[state] || '';
+  }
+
+  function init() {
+    _syncEl = document.getElementById('sync-status');
+  }
+
+  async function loadFromGist() {
+    const pat    = Storage.getPat();
+    const gistId = Storage.getGistId();
+    if (!pat || !gistId) return false;
+    try {
+      const res = await fetch(`${GIST_API}/${gistId}`, { headers: _headers(pat) });
+      if (!res.ok) {
+        if (res.status === 404) Storage.saveGistId('');
+        return false;
+      }
+      const data   = await res.json();
+      const file   = data.files?.[FILENAME];
+      if (!file) return false;
+      const parsed = JSON.parse(file.content);
+      if (Array.isArray(parsed.items)) {
+        items = parsed.items;
+        Storage.saveItems(items);
+      }
+      if (Array.isArray(parsed.profiles)) {
+        profiles = parsed.profiles;
+        Storage.saveProfiles(profiles);
+      }
+      if (parsed.settings && typeof parsed.settings === 'object') {
+        settings = { ...settings, ...parsed.settings };
+        Storage.saveSettings(settings);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function scheduleSync() {
+    if (!Storage.getPat()) return;
+    clearTimeout(_syncTimer);
+    _setStatus('syncing');
+    _syncTimer = setTimeout(_doSync, 1500);
+  }
+
+  async function _doSync() {
+    const pat    = Storage.getPat();
+    const gistId = Storage.getGistId();
+    if (!pat) return;
+    try {
+      let res;
+      if (gistId) {
+        res = await fetch(`${GIST_API}/${gistId}`, {
+          method: 'PATCH', headers: _headers(pat), body: _payload()
+        });
+      } else {
+        res = await fetch(GIST_API, {
+          method: 'POST', headers: _headers(pat), body: _payload()
+        });
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg  = body?.message || `HTTP ${res.status}`;
+        if (res.status === 401) showToast('Sync failed — GitHub token invalid');
+        else if (res.status === 403) showToast('Sync failed — token lacks gist permission');
+        else showToast(`Sync failed (${msg})`);
+        _setStatus('error');
+        return;
+      }
+      const data = await res.json();
+      if (!gistId) Storage.saveGistId(data.id);
+      _setStatus('ok');
+      setTimeout(() => _setStatus('idle'), 3000);
+    } catch {
+      showToast('Sync failed — check your connection');
+      _setStatus('error');
+    }
+  }
+
+  function savePat(newPat) {
+    const oldPat = Storage.getPat();
+    Storage.savePat(newPat.trim());
+    if (newPat.trim() !== oldPat) Storage.saveGistId('');
+  }
+
+  function getPat()   { return Storage.getPat(); }
+  function getGistId(){ return Storage.getGistId(); }
+
+  return { init, loadFromGist, scheduleSync, savePat, getPat, getGistId };
+})();
 
 /* ============================================================
    B. STATE
@@ -324,6 +458,7 @@ function saveItem() {
     });
   }
   Storage.saveItems(items);
+  GistSync.scheduleSync();
   document.getElementById('item-sheet').close();
   renderInventory();
 }
@@ -331,6 +466,7 @@ function saveItem() {
 function deleteItem(id) {
   items = items.filter(i => i.id !== id);
   Storage.saveItems(items);
+  GistSync.scheduleSync();
   document.getElementById('item-sheet').close();
   renderInventory();
 }
@@ -361,6 +497,7 @@ function importJSON(file) {
       profiles = data.profiles;
       Storage.saveItems(items);
       Storage.saveProfiles(profiles);
+      GistSync.scheduleSync();
       renderInventory();
       showToast('Import successful');
     } catch {
@@ -597,6 +734,7 @@ function saveProfile() {
     profiles.push({ id: generateId(), name, tags, diners: [], createdAt: new Date().toISOString() });
   }
   Storage.saveProfiles(profiles);
+  GistSync.scheduleSync();
   document.getElementById('profile-sheet').close();
   renderDiners();
 }
@@ -604,6 +742,7 @@ function saveProfile() {
 function deleteProfile(id) {
   profiles = profiles.filter(p => p.id !== id);
   Storage.saveProfiles(profiles);
+  GistSync.scheduleSync();
   document.getElementById('profile-sheet').close();
   renderDiners();
 }
@@ -687,6 +826,7 @@ function saveDiner() {
     profiles[pIdx].diners.push({ id: generateId(), ...dinerData });
   }
   Storage.saveProfiles(profiles);
+  GistSync.scheduleSync();
   document.getElementById('diner-sheet').close();
   renderDiners();
 }
@@ -696,6 +836,7 @@ function deleteDiner() {
   if (pIdx === -1) return;
   profiles[pIdx].diners = profiles[pIdx].diners.filter(d => d.id !== currentEditDinerId);
   Storage.saveProfiles(profiles);
+  GistSync.scheduleSync();
   document.getElementById('diner-sheet').close();
   renderDiners();
 }
@@ -749,6 +890,12 @@ function saveApiKey(key) {
   const s = Storage.getSettings();
   s.anthropicApiKey = key.trim();
   Storage.saveSettings(s);
+}
+
+function saveSyncSettings(pat, gistId) {
+  GistSync.savePat(pat);
+  Storage.saveGistId(gistId.trim());
+  if (pat.trim()) GistSync.scheduleSync();
 }
 
 function processReceiptImage(file) {
@@ -892,6 +1039,7 @@ function confirmReceiptItems() {
 
   items.push(...newItems);
   Storage.saveItems(items);
+  GistSync.scheduleSync();
   document.getElementById('receipt-review-sheet').close();
   renderInventory();
   showToast(`Added ${newItems.length} item${newItems.length !== 1 ? 's' : ''} from receipt`);
@@ -1074,6 +1222,8 @@ function updateCharCount(profileId) {
    ============================================================ */
 
 function initEventListeners() {
+  GistSync.init();
+
   /* ---- Tab bar ---- */
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
@@ -1238,17 +1388,49 @@ function initEventListeners() {
   });
   document.getElementById('receipt-items-list').addEventListener('change', updateReceiptAddButton);
   document.getElementById('receipt-add-btn').addEventListener('click', confirmReceiptItems);
+
+  /* ---- Cloud sync settings sheet ---- */
+  document.getElementById('btn-sync-settings').addEventListener('click', () => {
+    document.getElementById('settings-menu').style.display = 'none';
+    document.getElementById('sync-pat-input').value     = GistSync.getPat();
+    document.getElementById('sync-gist-id-input').value = GistSync.getGistId();
+    document.getElementById('sync-settings-sheet').showModal();
+  });
+  document.getElementById('sync-settings-cancel-btn').addEventListener('click', () => {
+    document.getElementById('sync-settings-sheet').close();
+  });
+  document.getElementById('sync-settings-sheet').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+  document.getElementById('sync-save-btn').addEventListener('click', () => {
+    const pat    = document.getElementById('sync-pat-input').value;
+    const gistId = document.getElementById('sync-gist-id-input').value;
+    saveSyncSettings(pat, gistId);
+    document.getElementById('sync-settings-sheet').close();
+    showToast(pat.trim() ? 'Sync settings saved' : 'Cloud sync disabled');
+  });
+  document.getElementById('sync-disconnect-btn').addEventListener('click', () => {
+    Storage.savePat('');
+    Storage.saveGistId('');
+    document.getElementById('sync-pat-input').value     = '';
+    document.getElementById('sync-gist-id-input').value = '';
+    document.getElementById('sync-settings-sheet').close();
+    showToast('Cloud sync disconnected');
+  });
 }
 
 /* ============================================================
    I. BOOT
    ============================================================ */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   loadState();
   registerServiceWorker();
   initInstallBanner();
   initBarcodeScanner();
   initEventListeners();
   showTab('inventory');
+
+  const synced = await GistSync.loadFromGist();
+  if (synced) showTab(currentTab);
 });
