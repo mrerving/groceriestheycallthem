@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "4b77781b-d6e3-432c-b87f-94ef77200f32",
+      "name": "Milk Chocolate Covered Raisins",
+      "location": "pantry",
+      "category": "other",
+      "quantity": "",
+      "unit": "",
+      "expiry": null,
+      "notes": "",
+      "createdAt": "2026-04-28T00:16:41.474Z",
+      "updatedAt": "2026-04-28T00:16:41.474Z"
+    },
+    {
+      "id": "a818d904-be20-4cfd-831e-a09fe14416a5",
+      "name": "Seasoned Pretzel Twists",
+      "location": "pantry",
+      "category": "other",
+      "quantity": "",
+      "unit": "",
+      "expiry": null,
+      "notes": "",
+      "createdAt": "2026-04-28T00:16:59.426Z",
+      "updatedAt": "2026-04-28T00:16:59.426Z"
+    },
+    {
+      "id": "7605d19f-0e6f-4341-9aac-717288df0c4a",
+      "name": "Diet Coke",
+      "location": "pantry",
+      "category": "other",
+      "quantity": "",
+      "unit": "",
+      "expiry": null,
+      "notes": "",
+      "createdAt": "2026-04-28T00:17:24.472Z",
+      "updatedAt": "2026-04-28T00:17:24.472Z"
+    }
+  ],
+  "diners": [
+    {
+      "id": "99979388-b893-4eca-941e-d36ca058a56d",
+      "name": "Madi",
+      "restrictions": [
+        "vegetarian"
+      ],
+      "spice": 2,
+      "cuisines": [
+        "Italian",
+        "Mexican",
+        "Thai",
+        "Japanese",
+        "Chinese",
+        "Indian",
+        "Mediterranean",
+        "American",
+        "Greek"
+      ],
+      "proteins": [
+        "Fish",
+        "Shrimp/Seafood",
+        "Tofu/Tempeh",
+        "Eggs"
+      ],
+      "mealFormats": [
+        "Soups & stews",
+        "Pasta & grains",
+        "Grilled mains",
+        "Salads",
+        "Sandwiches & wraps",
+        "Stir-fries",
+        "Casseroles"
+      ],
+      "polarizing": [
+        "Cilantro",
+        "Blue cheese",
+        "Olives",
+        "Eggplant",
+        "Raw onion"
+      ],
+      "loves": "Mac n cheese, balsamic vinegar",
+      "dislikes": "Cucumber, raw/undercooked bell peppers",
+      "notes": ""
+    },
+    {
+      "id": "4b701da5-8a74-473b-a4f7-a072460574c1",
+      "name": "Camden",
+      "restrictions": [],
+      "spice": 3,
+      "cuisines": [
+        "Italian",
+        "Mexican",
+        "Thai",
+        "Japanese",
+        "Chinese",
+        "Indian",
+        "Mediterranean",
+        "American",
+        "Korean",
+        "Middle Eastern",
+        "Vietnamese",
+        "Greek"
+      ],
+      "proteins": [
+        "Chicken",
+        "Beef",
+        "Pork",
+        "Fish",
+        "Shrimp/Seafood",
+        "Tofu/Tempeh",
+        "Eggs",
+        "Lamb"
+      ],
+      "mealFormats": [
+        "Soups & stews",
+        "Pasta & grains",
+        "Grilled mains",
+        "Salads",
+        "Sandwiches & wraps",
+        "Stir-fries",
+        "Casseroles"
+      ],
+      "polarizing": [
+        "Cilantro",
+        "Anchovies",
+        "Liver",
+        "Blue cheese",
+        "Olives",
+        "Mushrooms",
+        "Eggplant",
+        "Brussels sprouts",
+        "Beets",
+        "Raw onion",
+        "Sardines/herring",
+        "Okra",
+        "Fennel",
+        "Lamb",
+        "Natto/fermented"
+      ],
+      "loves": "",
+      "dislikes": "",
+      "notes": "Dontfeet me bri3 i will throw up"
+    }
+  ],
+  "profiles": []
+}
