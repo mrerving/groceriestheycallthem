@@ -35,6 +35,7 @@
           <button id="btn-import-trigger">📥 Import JSON</button>
           <button id="btn-scan-receipt">🧾 Scan receipt</button>
           <button id="btn-api-settings">🔑 API settings</button>
+          <button id="btn-github-settings">🔗 GitHub sync</button>
         </div>
       </div>
       <div class="filter-bar" id="inventory-filter-bar">
@@ -51,7 +52,11 @@
     <section class="tab-panel" id="tab-diners">
       <div class="page-header">
         <h2>Diners</h2>
-        <button id="btn-add-profile" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">+ Occasion</button>
+        <div style="display:flex;gap:8px">
+          <button id="btn-share-survey" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">Share survey</button>
+          <button id="btn-add-diner" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">+ Diner</button>
+          <button id="btn-add-profile" class="btn btn-secondary" style="font-size:0.85rem;padding:8px 12px;width:auto">+ Occasion</button>
+        </div>
       </div>
       <div id="diners-list"></div>
     </section>
@@ -153,6 +158,7 @@
           <label for="item-location">Location</label>
           <select id="item-location">
             <option value="pantry">Pantry</option>
+            <option value="spice">Spice Cabinet</option>
             <option value="fridge">Fridge</option>
             <option value="freezer">Freezer</option>
           </select>
@@ -271,6 +277,72 @@
       </div>
 
       <div class="field">
+        <label>Cuisine vibes</label>
+        <div class="pill-group" id="diner-cuisines-group">
+          <button class="pill-toggle" data-value="Italian">Italian</button>
+          <button class="pill-toggle" data-value="Mexican">Mexican</button>
+          <button class="pill-toggle" data-value="Thai">Thai</button>
+          <button class="pill-toggle" data-value="Japanese">Japanese</button>
+          <button class="pill-toggle" data-value="Chinese">Chinese</button>
+          <button class="pill-toggle" data-value="Indian">Indian</button>
+          <button class="pill-toggle" data-value="Mediterranean">Mediterranean</button>
+          <button class="pill-toggle" data-value="American">American</button>
+          <button class="pill-toggle" data-value="Korean">Korean</button>
+          <button class="pill-toggle" data-value="Middle Eastern">Middle Eastern</button>
+          <button class="pill-toggle" data-value="Vietnamese">Vietnamese</button>
+          <button class="pill-toggle" data-value="Greek">Greek</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Protein preferences</label>
+        <div class="pill-group" id="diner-proteins-group">
+          <button class="pill-toggle" data-value="Chicken">Chicken</button>
+          <button class="pill-toggle" data-value="Beef">Beef</button>
+          <button class="pill-toggle" data-value="Pork">Pork</button>
+          <button class="pill-toggle" data-value="Fish">Fish</button>
+          <button class="pill-toggle" data-value="Shrimp/Seafood">Shrimp/Seafood</button>
+          <button class="pill-toggle" data-value="Tofu/Tempeh">Tofu/Tempeh</button>
+          <button class="pill-toggle" data-value="Eggs">Eggs</button>
+          <button class="pill-toggle" data-value="Lamb">Lamb</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Meal formats</label>
+        <div class="pill-group" id="diner-mealformats-group">
+          <button class="pill-toggle" data-value="Soups &amp; stews">Soups &amp; stews</button>
+          <button class="pill-toggle" data-value="Pasta &amp; grains">Pasta &amp; grains</button>
+          <button class="pill-toggle" data-value="Grilled mains">Grilled mains</button>
+          <button class="pill-toggle" data-value="Salads">Salads</button>
+          <button class="pill-toggle" data-value="Sandwiches &amp; wraps">Sandwiches &amp; wraps</button>
+          <button class="pill-toggle" data-value="Stir-fries">Stir-fries</button>
+          <button class="pill-toggle" data-value="Casseroles">Casseroles</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Polarizing foods they actually like</label>
+        <div class="pill-group" id="diner-polarizing-group">
+          <button class="pill-toggle" data-value="Cilantro">Cilantro</button>
+          <button class="pill-toggle" data-value="Anchovies">Anchovies</button>
+          <button class="pill-toggle" data-value="Liver">Liver</button>
+          <button class="pill-toggle" data-value="Blue cheese">Blue cheese</button>
+          <button class="pill-toggle" data-value="Olives">Olives</button>
+          <button class="pill-toggle" data-value="Mushrooms">Mushrooms</button>
+          <button class="pill-toggle" data-value="Eggplant">Eggplant</button>
+          <button class="pill-toggle" data-value="Brussels sprouts">Brussels sprouts</button>
+          <button class="pill-toggle" data-value="Beets">Beets</button>
+          <button class="pill-toggle" data-value="Raw onion">Raw onion</button>
+          <button class="pill-toggle" data-value="Sardines/herring">Sardines/herring</button>
+          <button class="pill-toggle" data-value="Okra">Okra</button>
+          <button class="pill-toggle" data-value="Fennel">Fennel</button>
+          <button class="pill-toggle" data-value="Lamb">Lamb</button>
+          <button class="pill-toggle" data-value="Natto/fermented">Natto/fermented</button>
+        </div>
+      </div>
+
+      <div class="field">
         <label for="diner-loves">Foods I love</label>
         <textarea id="diner-loves" placeholder="e.g. pasta, Thai food, mushrooms..."></textarea>
       </div>
@@ -334,6 +406,51 @@
     <p class="scan-hint">Point at a barcode</p>
     <div class="scan-spinner" id="scan-spinner"></div>
     <button id="scan-close">✕</button>
+  </dialog>
+
+  <!-- ===== GitHub sync settings sheet ===== -->
+  <dialog id="github-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h3>GitHub sync</h3>
+      <button class="btn-ghost" id="github-cancel-btn" style="padding:8px">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <label for="github-token-input">GitHub personal access token</label>
+        <input type="password" id="github-token-input" placeholder="ghp_..." autocomplete="off">
+        <p class="attribution-note" style="margin-top:4px">Needs "contents" scope on the repo. Stored only in this browser, never synced.</p>
+      </div>
+      <div class="field">
+        <label for="github-repo-input">Repository</label>
+        <input type="text" id="github-repo-input" placeholder="owner/repo">
+      </div>
+      <div class="field">
+        <label for="github-filepath-input">Data file path</label>
+        <input type="text" id="github-filepath-input" placeholder="data/pantry-data.json">
+      </div>
+      <div id="github-last-sync" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <button id="github-save-btn" class="btn btn-primary">Save settings</button>
+        <button id="github-pull-btn" class="btn btn-secondary">Pull from GitHub</button>
+        <button id="github-push-btn" class="btn btn-secondary">Push to GitHub</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ===== Diner picker sheet ===== -->
+  <dialog id="diner-picker-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h3>Add diners to occasion</h3>
+      <button class="btn-ghost" id="diner-picker-cancel-btn" style="padding:8px">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div id="diner-picker-list"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+        <button id="diner-picker-done-btn" class="btn btn-primary">Done</button>
+      </div>
+    </div>
   </dialog>
 
   <!-- ===== Scripts ===== -->

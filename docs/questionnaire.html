@@ -43,6 +43,13 @@
       margin-bottom: 8px;
       display: block;
     }
+    .q-sublabel {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: block;
+      font-style: italic;
+    }
 
     /* Text inputs */
     .q-input {
@@ -241,6 +248,76 @@
     </div>
 
     <div class="q-section">
+      <span class="q-label">Cuisine vibes</span>
+      <span class="q-sublabel">Select any cuisines you enjoy</span>
+      <div class="pill-group" id="cuisines-group">
+        <button class="pill" data-value="Italian">Italian</button>
+        <button class="pill" data-value="Mexican">Mexican</button>
+        <button class="pill" data-value="Thai">Thai</button>
+        <button class="pill" data-value="Japanese">Japanese</button>
+        <button class="pill" data-value="Chinese">Chinese</button>
+        <button class="pill" data-value="Indian">Indian</button>
+        <button class="pill" data-value="Mediterranean">Mediterranean</button>
+        <button class="pill" data-value="American">American</button>
+        <button class="pill" data-value="Korean">Korean</button>
+        <button class="pill" data-value="Middle Eastern">Middle Eastern</button>
+        <button class="pill" data-value="Vietnamese">Vietnamese</button>
+        <button class="pill" data-value="Greek">Greek</button>
+      </div>
+    </div>
+
+    <div class="q-section">
+      <span class="q-label">Protein preferences</span>
+      <span class="q-sublabel">Select anything you're happy eating</span>
+      <div class="pill-group" id="proteins-group">
+        <button class="pill" data-value="Chicken">Chicken</button>
+        <button class="pill" data-value="Beef">Beef</button>
+        <button class="pill" data-value="Pork">Pork</button>
+        <button class="pill" data-value="Fish">Fish</button>
+        <button class="pill" data-value="Shrimp/Seafood">Shrimp/Seafood</button>
+        <button class="pill" data-value="Tofu/Tempeh">Tofu/Tempeh</button>
+        <button class="pill" data-value="Eggs">Eggs</button>
+        <button class="pill" data-value="Lamb">Lamb</button>
+      </div>
+    </div>
+
+    <div class="q-section">
+      <span class="q-label">Meal formats</span>
+      <span class="q-sublabel">What kinds of meals do you enjoy?</span>
+      <div class="pill-group" id="mealformats-group">
+        <button class="pill" data-value="Soups &amp; stews">Soups &amp; stews</button>
+        <button class="pill" data-value="Pasta &amp; grains">Pasta &amp; grains</button>
+        <button class="pill" data-value="Grilled mains">Grilled mains</button>
+        <button class="pill" data-value="Salads">Salads</button>
+        <button class="pill" data-value="Sandwiches &amp; wraps">Sandwiches &amp; wraps</button>
+        <button class="pill" data-value="Stir-fries">Stir-fries</button>
+        <button class="pill" data-value="Casseroles">Casseroles</button>
+      </div>
+    </div>
+
+    <div class="q-section">
+      <span class="q-label">Foods people often hate — check the ones you're actually into</span>
+      <span class="q-sublabel">Tap anything from this list that you genuinely enjoy</span>
+      <div class="pill-group" id="polarizing-group">
+        <button class="pill" data-value="Cilantro">Cilantro</button>
+        <button class="pill" data-value="Anchovies">Anchovies</button>
+        <button class="pill" data-value="Liver">Liver</button>
+        <button class="pill" data-value="Blue cheese">Blue cheese</button>
+        <button class="pill" data-value="Olives">Olives</button>
+        <button class="pill" data-value="Mushrooms">Mushrooms</button>
+        <button class="pill" data-value="Eggplant">Eggplant</button>
+        <button class="pill" data-value="Brussels sprouts">Brussels sprouts</button>
+        <button class="pill" data-value="Beets">Beets</button>
+        <button class="pill" data-value="Raw onion">Raw onion</button>
+        <button class="pill" data-value="Sardines/herring">Sardines/herring</button>
+        <button class="pill" data-value="Okra">Okra</button>
+        <button class="pill" data-value="Fennel">Fennel</button>
+        <button class="pill" data-value="Lamb">Lamb</button>
+        <button class="pill" data-value="Natto/fermented">Natto/fermented</button>
+      </div>
+    </div>
+
+    <div class="q-section">
       <label class="q-label" for="q-loves">Foods I love</label>
       <textarea class="q-input" id="q-loves" placeholder="e.g. pasta, anything with mushrooms, Thai food..."></textarea>
     </div>
@@ -292,6 +369,7 @@
      ============================================================ */
 
   // Configuration — edit these strings to customise the page
+  // The ?host= URL param overrides hostName at runtime
   const CONFIG = {
     hostName: 'Madison',
     title: "Madison's dinner questionnaire",
@@ -300,6 +378,9 @@
 
   const SPICE_LABELS = ['No spice', 'Mild', 'Medium', 'Hot', 'Bring it'];
   const SPICE_EMOJI  = ['\uD83E\uDD5B', '\uD83C\uDF36\uFE0F', '\uD83C\uDF36\uFE0F\uD83C\uDF36\uFE0F', '\uD83C\uDF36\uFE0F\uD83C\uDF36\uFE0F\uD83C\uDF36\uFE0F', '\uD83D\uDD25'];
+
+  // Multi-select pill groups (besides restrictions which has "none" special-case)
+  const MULTI_GROUPS = ['cuisines-group', 'proteins-group', 'mealformats-group', 'polarizing-group'];
 
   let selectedSpice = -1;
 
@@ -313,9 +394,37 @@
     return JSON.parse(decodeURIComponent(escape(atob(encoded))));
   }
 
+  /* ---------- Generic multi-select pill helpers ---------- */
+  function wirePillGroup(groupId) {
+    document.getElementById(groupId).addEventListener('click', e => {
+      const btn = e.target.closest('.pill');
+      if (!btn) return;
+      btn.classList.toggle('on');
+    });
+  }
+
+  function getSelectedPills(groupId) {
+    return Array.from(
+      document.querySelectorAll('#' + groupId + ' .pill.on')
+    ).map(b => b.dataset.value);
+  }
+
+  function setSelectedPills(groupId, values) {
+    document.querySelectorAll('#' + groupId + ' .pill').forEach(btn => {
+      btn.classList.toggle('on', values.includes(btn.dataset.value));
+    });
+  }
+
   /* ---------- Init ---------- */
   function init() {
-    // Apply config
+    // Apply host name from ?host= URL param if present
+    const params = new URLSearchParams(window.location.search);
+    const hostParam = params.get('host');
+    if (hostParam) {
+      CONFIG.hostName = hostParam;
+      CONFIG.title = hostParam + "\u2019s dinner questionnaire";
+    }
+
     document.getElementById('q-title').textContent      = CONFIG.title;
     document.getElementById('q-subtitle').textContent   = CONFIG.subtitle;
     document.getElementById('host-name-span').textContent = CONFIG.hostName;
@@ -329,12 +438,11 @@
       showForm();
     }
 
-    // Wire restriction pills
+    // Wire restriction pills (special "none" logic)
     document.getElementById('restrictions-group').addEventListener('click', e => {
       const btn = e.target.closest('.pill');
       if (!btn) return;
       if (btn.dataset.value === 'none') {
-        // Deselect all others
         document.querySelectorAll('#restrictions-group .pill').forEach(p => p.classList.remove('on'));
         btn.classList.add('on');
       } else {
@@ -351,6 +459,9 @@
       document.querySelectorAll('.spice-btn').forEach(b => b.classList.remove('on'));
       btn.classList.add('on');
     });
+
+    // Wire generic multi-select pill groups
+    MULTI_GROUPS.forEach(wirePillGroup);
 
     // Generate button
     document.getElementById('btn-generate').addEventListener('click', generateLink);
@@ -372,8 +483,7 @@
   }
 
   function goToForm() {
-    // Strip hash and reload to form
-    history.replaceState(null, '', window.location.pathname);
+    history.replaceState(null, '', window.location.pathname + window.location.search);
     document.getElementById('receipt-view').classList.remove('visible');
     document.getElementById('form-view').classList.remove('hidden');
     document.getElementById('link-result').classList.remove('visible');
@@ -389,6 +499,10 @@
       name:         document.getElementById('q-name').value.trim(),
       restrictions: restrictions,
       spice:        selectedSpice >= 0 ? selectedSpice : 0,
+      cuisines:     getSelectedPills('cuisines-group'),
+      proteins:     getSelectedPills('proteins-group'),
+      mealFormats:  getSelectedPills('mealformats-group'),
+      polarizing:   getSelectedPills('polarizing-group'),
       loves:        document.getElementById('q-loves').value.trim(),
       dislikes:     document.getElementById('q-dislikes').value.trim(),
       notes:        document.getElementById('q-notes').value.trim()
@@ -418,14 +532,17 @@
     try {
       data = decodeData(encoded);
     } catch (e) {
-      // Malformed — show form
       showForm();
       return;
     }
 
-    // Build receipt HTML
     const spiceLabel = SPICE_LABELS[data.spice] || SPICE_LABELS[0];
     const spiceEmoji = SPICE_EMOJI[data.spice]  || SPICE_EMOJI[0];
+
+    function pillsHtml(arr) {
+      if (!arr || !arr.length) return '<span style="color:var(--muted);font-size:0.9rem">None selected</span>';
+      return arr.map(r => `<span class="receipt-pill">${esc(r)}</span>`).join('');
+    }
 
     const restrictionPills = (data.restrictions || []).length
       ? data.restrictions.map(r => `<span class="receipt-pill">${esc(r)}</span>`).join('')
@@ -444,6 +561,10 @@
         <div class="receipt-key">Spice tolerance</div>
         <div class="receipt-val">${spiceEmoji} ${spiceLabel}</div>
       </div>
+      ${(data.cuisines||[]).length ? `<div class="receipt-row"><div class="receipt-key">Cuisines</div><div class="receipt-pills">${pillsHtml(data.cuisines)}</div></div>` : ''}
+      ${(data.proteins||[]).length ? `<div class="receipt-row"><div class="receipt-key">Proteins</div><div class="receipt-pills">${pillsHtml(data.proteins)}</div></div>` : ''}
+      ${(data.mealFormats||[]).length ? `<div class="receipt-row"><div class="receipt-key">Meal formats</div><div class="receipt-pills">${pillsHtml(data.mealFormats)}</div></div>` : ''}
+      ${(data.polarizing||[]).length ? `<div class="receipt-row"><div class="receipt-key">Polarizing foods they like</div><div class="receipt-pills">${pillsHtml(data.polarizing)}</div></div>` : ''}
       ${data.loves ? `<div class="receipt-row"><div class="receipt-key">Foods I love</div><div class="receipt-val">${esc(data.loves)}</div></div>` : ''}
       ${data.dislikes ? `<div class="receipt-row"><div class="receipt-key">Hard nos</div><div class="receipt-val">${esc(data.dislikes)}</div></div>` : ''}
       ${data.notes ? `<div class="receipt-row"><div class="receipt-key">Anything else</div><div class="receipt-val">${esc(data.notes)}</div></div>` : ''}
@@ -468,7 +589,6 @@
       btn.textContent = 'Copied!';
       setTimeout(() => { btn.textContent = orig; }, 2000);
     }).catch(() => {
-      // Fallback for older browsers
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';

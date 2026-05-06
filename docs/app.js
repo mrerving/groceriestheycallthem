@@ -12,7 +12,8 @@
 const STORAGE_KEYS = {
   ITEMS:    'pantry_items',
   PROFILES: 'pantry_profiles',
-  SETTINGS: 'pantry_settings'
+  SETTINGS: 'pantry_settings',
+  DINERS:   'pantry_diners'
 };
 
 function generateId() {
@@ -59,6 +60,8 @@ const Storage = {
   saveItems:    (v) => { try { localStorage.setItem(STORAGE_KEYS.ITEMS,    JSON.stringify(v)); } catch { showToast('Storage full — could not save'); } },
   getProfiles:  () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILES) || '[]'); } catch { return []; } },
   saveProfiles: (v) => { try { localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(v)); } catch { showToast('Storage full — could not save'); } },
+  getDiners:    () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.DINERS)   || '[]'); } catch { return []; } },
+  saveDiners:   (v) => { try { localStorage.setItem(STORAGE_KEYS.DINERS,   JSON.stringify(v)); } catch { showToast('Storage full — could not save'); } },
   getSettings:  () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}'); } catch { return {}; } },
   saveSettings: (v) => { localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(v)); }
 };
@@ -68,14 +71,133 @@ const Storage = {
    ============================================================ */
 
 let items    = [];
+let diners   = [];
 let profiles = [];
 let settings = {};
 
 function loadState() {
   items    = Storage.getItems();
+  diners   = Storage.getDiners();
   profiles = Storage.getProfiles();
   settings = Storage.getSettings();
 }
+
+function migrateData() {
+  let dirty = false;
+  profiles.forEach(p => {
+    if (Array.isArray(p.diners)) {
+      p.diners.forEach(d => {
+        if (!diners.find(gd => gd.id === d.id)) diners.push(d);
+      });
+      if (!p.dinerIds) p.dinerIds = p.diners.map(d => d.id);
+      delete p.diners;
+      dirty = true;
+    } else if (!p.dinerIds) {
+      p.dinerIds = [];
+      dirty = true;
+    }
+  });
+  if (dirty) {
+    Storage.saveDiners(diners);
+    Storage.saveProfiles(profiles);
+  }
+}
+
+/* ============================================================
+   GITHUB SYNC  (Contents API — stores data/pantry-data.json in repo)
+   ============================================================ */
+
+const GitHubSync = {
+  _sha: null,
+
+  _cfg() {
+    const s = Storage.getSettings();
+    const parts = (s.githubRepo || '').split('/');
+    return {
+      token:    s.githubToken    || '',
+      owner:    parts[0]         || '',
+      repo:     parts[1]         || '',
+      filePath: s.githubFilePath || 'data/pantry-data.json'
+    };
+  },
+
+  _url() {
+    const { owner, repo, filePath } = this._cfg();
+    return `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+  },
+
+  _encode(data) {
+    const json = JSON.stringify(data, null, 2);
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  },
+
+  _decode(b64) {
+    const bin   = atob(b64.replace(/\s/g, ''));
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  },
+
+  async pull() {
+    const { token, owner, repo } = this._cfg();
+    if (!token || !owner || !repo) return;
+    try {
+      const res = await fetch(this._url(), {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data   = await res.json();
+      this._sha    = data.sha;
+      const parsed = JSON.parse(this._decode(data.content));
+      if (Array.isArray(parsed.items))    { items    = parsed.items;    Storage.saveItems(items); }
+      if (Array.isArray(parsed.diners))   { diners   = parsed.diners;   Storage.saveDiners(diners); }
+      if (Array.isArray(parsed.profiles)) { profiles = parsed.profiles; Storage.saveProfiles(profiles); }
+      if (currentTab === 'inventory') renderInventory();
+      else if (currentTab === 'diners') renderDiners();
+      else if (currentTab === 'plan')   renderPlan();
+    } catch { /* offline — keep local data */ }
+  },
+
+  async push() {
+    const { token, owner, repo } = this._cfg();
+    if (!token || !owner || !repo) return;
+    if (!this._sha) {
+      try {
+        const r = await fetch(this._url(), {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+        });
+        if (r.ok) { const d = await r.json(); this._sha = d.sha; }
+      } catch { /* new file — no SHA needed */ }
+    }
+    const body = {
+      message: `Update pantry data ${new Date().toISOString().slice(0, 10)}`,
+      content: this._encode({ version: 1, items, diners, profiles })
+    };
+    if (this._sha) body.sha = this._sha;
+    try {
+      const res = await fetch(this._url(), {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github+json'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      this._sha  = data.content?.sha;
+      const s    = Storage.getSettings();
+      s.githubLastSync = new Date().toISOString();
+      Storage.saveSettings(s);
+      showToast('Synced to GitHub ✓');
+    } catch {
+      showToast('Sync failed — working offline');
+    }
+  }
+};
 
 /* ============================================================
    G. ROUTING
@@ -154,9 +276,9 @@ function showToast(msg, duration = 3000) {
    C. INVENTORY TAB
    ============================================================ */
 
-const LOCATION_LABELS = { pantry: 'Pantry', fridge: 'Fridge', freezer: 'Freezer' };
-const LOCATION_ICONS  = { pantry: '🗄️', fridge: '🧊', freezer: '❄️' };
-const LOCATION_ORDER  = ['pantry', 'fridge', 'freezer'];
+const LOCATION_LABELS = { pantry: 'Pantry', spice: 'Spice Cabinet', fridge: 'Fridge', freezer: 'Freezer' };
+const LOCATION_ICONS  = { pantry: '🗄️', spice: '🌿', fridge: '🧊', freezer: '❄️' };
+const LOCATION_ORDER  = ['pantry', 'spice', 'fridge', 'freezer'];
 
 function renderInventory(filter) {
   if (filter !== undefined) currentInventoryFilter = filter;
@@ -324,6 +446,7 @@ function saveItem() {
     });
   }
   Storage.saveItems(items);
+  GitHubSync.push();
   document.getElementById('item-sheet').close();
   renderInventory();
 }
@@ -331,6 +454,7 @@ function saveItem() {
 function deleteItem(id) {
   items = items.filter(i => i.id !== id);
   Storage.saveItems(items);
+  GitHubSync.push();
   document.getElementById('item-sheet').close();
   renderInventory();
 }
@@ -338,7 +462,7 @@ function deleteItem(id) {
 /* ---- Import / Export ---- */
 
 function exportJSON() {
-  const data = { items, profiles };
+  const data = { version: 1, items, diners, profiles };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
@@ -359,8 +483,11 @@ function importJSON(file) {
       }
       items    = data.items;
       profiles = data.profiles;
+      if (Array.isArray(data.diners)) diners = data.diners;
       Storage.saveItems(items);
       Storage.saveProfiles(profiles);
+      Storage.saveDiners(diners);
+      migrateData();
       renderInventory();
       showToast('Import successful');
     } catch {
@@ -497,56 +624,83 @@ const SPICE_LABEL = ['No spice','Mild','Medium','Hot','Bring it'];
 
 function renderDiners() {
   const container = document.getElementById('diners-list');
-  if (profiles.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">👥</div>
-        <p>No occasions yet.<br>Tap "+ Occasion" to create one.</p>
-      </div>`;
-    return;
-  }
-  container.innerHTML = profiles.map(profile => {
-    const tagsHtml = (profile.tags || []).length
-      ? profile.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')
-      : '';
-    const dinersHtml = (profile.diners || []).map(d => {
-      const rBadges = (d.restrictions || [])
-        .map(r => `<span class="restriction-badge">${esc(r)}</span>`).join('');
-      return `
-        <div class="diner-row" data-profile-id="${esc(profile.id)}" data-diner-id="${esc(d.id)}">
-          <div class="diner-info">
-            <div class="diner-name">${esc(d.name)}</div>
-            <div class="diner-restrictions">${rBadges}</div>
-          </div>
-          <div class="spice-display">${SPICE_EMOJI[d.spice ?? 0]}</div>
-        </div>`;
-    }).join('');
-    return `
-      <div class="profile-card">
-        <div class="profile-header" data-profile-id="${esc(profile.id)}">
-          <div>
-            <div class="profile-name">${esc(profile.name)}</div>
-            ${tagsHtml ? `<div class="profile-tags">${tagsHtml}</div>` : ''}
-          </div>
-          <button class="btn-ghost edit-profile-btn" data-profile-id="${esc(profile.id)}" style="padding:6px">✏️</button>
-        </div>
-        <div class="diner-list">${dinersHtml}</div>
-        <div class="profile-actions">
-          <button class="btn btn-secondary add-diner-btn" data-profile-id="${esc(profile.id)}">+ Add diner</button>
-        </div>
-      </div>`;
-  }).join('');
 
-  // Wire diner row clicks
-  container.querySelectorAll('.diner-row').forEach(row => {
+  // Global diners section
+  const globalHtml = diners.length === 0
+    ? '<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0">No diners yet.</p>'
+    : diners.map(d => {
+        const rBadges = (d.restrictions || [])
+          .map(r => `<span class="restriction-badge">${esc(r)}</span>`).join('');
+        return `
+          <div class="diner-row diner-global-row" data-diner-id="${esc(d.id)}">
+            <div class="diner-info">
+              <div class="diner-name">${esc(d.name)}</div>
+              <div class="diner-restrictions">${rBadges}</div>
+            </div>
+            <div class="spice-display">${SPICE_EMOJI[d.spice ?? 0]}</div>
+          </div>`;
+      }).join('');
+
+  // Occasions section
+  const occasionsHtml = profiles.length === 0
+    ? '<p style="color:var(--text-muted);font-size:0.9rem;padding:8px 0">No occasions yet.</p>'
+    : profiles.map(profile => {
+        const tagsHtml = (profile.tags || [])
+          .map(t => `<span class="tag">${esc(t)}</span>`).join('');
+        const profileDiners = (profile.dinerIds || [])
+          .map(id => diners.find(d => d.id === id)).filter(Boolean);
+        const pdHtml = profileDiners.map(d => {
+          const rBadges = (d.restrictions || [])
+            .map(r => `<span class="restriction-badge">${esc(r)}</span>`).join('');
+          return `
+            <div class="diner-row diner-occasion-row" data-diner-id="${esc(d.id)}">
+              <div class="diner-info">
+                <div class="diner-name">${esc(d.name)}</div>
+                <div class="diner-restrictions">${rBadges}</div>
+              </div>
+              <div class="spice-display">${SPICE_EMOJI[d.spice ?? 0]}</div>
+            </div>`;
+        }).join('');
+        return `
+          <div class="profile-card">
+            <div class="profile-header">
+              <div>
+                <div class="profile-name">${esc(profile.name)}</div>
+                ${tagsHtml ? `<div class="profile-tags">${tagsHtml}</div>` : ''}
+              </div>
+              <button class="btn-ghost edit-profile-btn" data-profile-id="${esc(profile.id)}" style="padding:6px">✏️</button>
+            </div>
+            <div class="diner-list">${pdHtml}</div>
+            <div class="profile-actions">
+              <button class="btn btn-secondary add-diners-btn" data-profile-id="${esc(profile.id)}">+ Add diners</button>
+            </div>
+          </div>`;
+      }).join('');
+
+  container.innerHTML = `
+    <div class="diners-section">
+      <h3 class="section-label">People</h3>
+      ${globalHtml}
+    </div>
+    <div class="diners-section" style="margin-top:20px">
+      <h3 class="section-label">Occasions</h3>
+      ${occasionsHtml}
+    </div>`;
+
+  container.querySelectorAll('.diner-global-row').forEach(row => {
     row.addEventListener('click', () => {
-      const profile = profiles.find(p => p.id === row.dataset.profileId);
-      const diner   = profile?.diners.find(d => d.id === row.dataset.dinerId);
-      if (profile && diner) openEditDinerSheet(profile.id, diner);
+      const diner = diners.find(d => d.id === row.dataset.dinerId);
+      if (diner) openEditDinerSheet(diner);
     });
   });
 
-  // Wire edit profile buttons
+  container.querySelectorAll('.diner-occasion-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const diner = diners.find(d => d.id === row.dataset.dinerId);
+      if (diner) openEditDinerSheet(diner);
+    });
+  });
+
   container.querySelectorAll('.edit-profile-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -555,9 +709,8 @@ function renderDiners() {
     });
   });
 
-  // Wire add diner buttons
-  container.querySelectorAll('.add-diner-btn').forEach(btn => {
-    btn.addEventListener('click', () => openAddDinerSheet(btn.dataset.profileId));
+  container.querySelectorAll('.add-diners-btn').forEach(btn => {
+    btn.addEventListener('click', () => openDinerPickerSheet(btn.dataset.profileId));
   });
 }
 
@@ -594,9 +747,10 @@ function saveProfile() {
       profiles[idx] = { ...profiles[idx], name, tags };
     }
   } else {
-    profiles.push({ id: generateId(), name, tags, diners: [], createdAt: new Date().toISOString() });
+    profiles.push({ id: generateId(), name, tags, dinerIds: [], createdAt: new Date().toISOString() });
   }
   Storage.saveProfiles(profiles);
+  GitHubSync.push();
   document.getElementById('profile-sheet').close();
   renderDiners();
 }
@@ -604,51 +758,86 @@ function saveProfile() {
 function deleteProfile(id) {
   profiles = profiles.filter(p => p.id !== id);
   Storage.saveProfiles(profiles);
+  GitHubSync.push();
   document.getElementById('profile-sheet').close();
   renderDiners();
 }
 
 /* ---- Diner sheet ---- */
 
-let currentDinerProfileId = null;
-let currentEditDinerId    = null;
-let currentDinerSpice     = 0;
+let currentEditDinerId = null;
+let currentDinerSpice  = 0;
 
-function openAddDinerSheet(profileId) {
-  currentDinerProfileId = profileId;
-  currentEditDinerId    = null;
-  currentDinerSpice     = 0;
+function openAddDinerSheet() {
+  currentEditDinerId = null;
+  currentDinerSpice  = 0;
   document.getElementById('diner-sheet-title').textContent = 'Add diner';
-  document.getElementById('diner-name').value      = '';
+  document.getElementById('diner-name').value       = '';
   document.getElementById('diner-link-input').value = '';
-  document.getElementById('diner-loves').value     = '';
-  document.getElementById('diner-dislikes').value  = '';
-  document.getElementById('diner-notes').value     = '';
+  document.getElementById('diner-loves').value      = '';
+  document.getElementById('diner-dislikes').value   = '';
+  document.getElementById('diner-notes').value      = '';
   document.getElementById('diner-delete-btn').style.display = 'none';
   setDinerRestrictions([]);
   setDinerSpice(0);
+  setDinerMultiSelect('diner-cuisines-group', []);
+  setDinerMultiSelect('diner-proteins-group', []);
+  setDinerMultiSelect('diner-mealformats-group', []);
+  setDinerMultiSelect('diner-polarizing-group', []);
   document.getElementById('diner-sheet').showModal();
 }
 
-function openEditDinerSheet(profileId, diner) {
-  currentDinerProfileId = profileId;
-  currentEditDinerId    = diner.id;
-  currentDinerSpice     = diner.spice ?? 0;
+function openEditDinerSheet(diner) {
+  currentEditDinerId = diner.id;
+  currentDinerSpice  = diner.spice ?? 0;
   document.getElementById('diner-sheet-title').textContent = 'Edit diner';
-  document.getElementById('diner-name').value      = diner.name     || '';
+  document.getElementById('diner-name').value       = diner.name     || '';
   document.getElementById('diner-link-input').value = '';
-  document.getElementById('diner-loves').value     = diner.loves    || '';
-  document.getElementById('diner-dislikes').value  = diner.dislikes || '';
-  document.getElementById('diner-notes').value     = diner.notes    || '';
+  document.getElementById('diner-loves').value      = diner.loves    || '';
+  document.getElementById('diner-dislikes').value   = diner.dislikes || '';
+  document.getElementById('diner-notes').value      = diner.notes    || '';
   document.getElementById('diner-delete-btn').style.display = '';
   setDinerRestrictions(diner.restrictions || []);
   setDinerSpice(diner.spice ?? 0);
+  setDinerMultiSelect('diner-cuisines-group', diner.cuisines || []);
+  setDinerMultiSelect('diner-proteins-group', diner.proteins || []);
+  setDinerMultiSelect('diner-mealformats-group', diner.mealFormats || []);
+  setDinerMultiSelect('diner-polarizing-group', diner.polarizing || []);
   document.getElementById('diner-sheet').showModal();
 }
 
 function setDinerRestrictions(selected) {
   document.querySelectorAll('#diner-restrictions-group .pill-toggle').forEach(btn => {
     btn.classList.toggle('selected', selected.includes(btn.dataset.value));
+  });
+}
+
+function setDinerMultiSelect(groupId, values) {
+  document.querySelectorAll('#' + groupId + ' .pill-toggle').forEach(btn => {
+    btn.classList.toggle('selected', values.includes(btn.dataset.value));
+  });
+}
+
+function getSelectedDinerValues(groupId) {
+  return Array.from(
+    document.querySelectorAll('#' + groupId + ' .pill-toggle.selected')
+  ).map(b => b.dataset.value);
+}
+
+function copySurveyLink() {
+  const url = new URL('questionnaire.html', window.location.href).href;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('Survey link copied!');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Survey link copied!');
   });
 }
 
@@ -672,31 +861,72 @@ function saveDiner() {
     name,
     restrictions: getSelectedRestrictions(),
     spice:        currentDinerSpice,
+    cuisines:     getSelectedDinerValues('diner-cuisines-group'),
+    proteins:     getSelectedDinerValues('diner-proteins-group'),
+    mealFormats:  getSelectedDinerValues('diner-mealformats-group'),
+    polarizing:   getSelectedDinerValues('diner-polarizing-group'),
     loves:        document.getElementById('diner-loves').value.trim(),
     dislikes:     document.getElementById('diner-dislikes').value.trim(),
     notes:        document.getElementById('diner-notes').value.trim()
   };
-  const pIdx = profiles.findIndex(p => p.id === currentDinerProfileId);
-  if (pIdx === -1) return;
   if (currentEditDinerId) {
-    const dIdx = profiles[pIdx].diners.findIndex(d => d.id === currentEditDinerId);
-    if (dIdx !== -1) {
-      profiles[pIdx].diners[dIdx] = { ...profiles[pIdx].diners[dIdx], ...dinerData };
-    }
+    const idx = diners.findIndex(d => d.id === currentEditDinerId);
+    if (idx !== -1) diners[idx] = { ...diners[idx], ...dinerData };
   } else {
-    profiles[pIdx].diners.push({ id: generateId(), ...dinerData });
+    diners.push({ id: generateId(), ...dinerData });
   }
-  Storage.saveProfiles(profiles);
+  Storage.saveDiners(diners);
+  GitHubSync.push();
   document.getElementById('diner-sheet').close();
   renderDiners();
 }
 
 function deleteDiner() {
-  const pIdx = profiles.findIndex(p => p.id === currentDinerProfileId);
-  if (pIdx === -1) return;
-  profiles[pIdx].diners = profiles[pIdx].diners.filter(d => d.id !== currentEditDinerId);
+  diners = diners.filter(d => d.id !== currentEditDinerId);
+  profiles.forEach(p => {
+    p.dinerIds = (p.dinerIds || []).filter(id => id !== currentEditDinerId);
+  });
+  Storage.saveDiners(diners);
   Storage.saveProfiles(profiles);
+  GitHubSync.push();
   document.getElementById('diner-sheet').close();
+  renderDiners();
+}
+
+/* ---- Diner picker sheet ---- */
+
+let currentPickerProfileId = null;
+
+function openDinerPickerSheet(profileId) {
+  currentPickerProfileId = profileId;
+  const profile = profiles.find(p => p.id === profileId);
+  if (!profile) return;
+  const currentIds = profile.dinerIds || [];
+  const list = document.getElementById('diner-picker-list');
+  list.innerHTML = diners.length === 0
+    ? '<p style="color:var(--text-muted);font-size:0.9rem">No diners yet — add some first.</p>'
+    : diners.map(d => `
+        <label class="diner-picker-row">
+          <input type="checkbox" class="diner-picker-check" data-diner-id="${esc(d.id)}"
+            ${currentIds.includes(d.id) ? 'checked' : ''}>
+          <div class="diner-picker-info">
+            <span class="diner-name">${esc(d.name)}</span>
+            <span class="spice-display" style="margin-left:6px">${SPICE_EMOJI[d.spice ?? 0]}</span>
+            ${(d.restrictions || []).map(r => `<span class="restriction-badge">${esc(r)}</span>`).join('')}
+          </div>
+        </label>`).join('');
+  document.getElementById('diner-picker-sheet').showModal();
+}
+
+function saveDinerPicker() {
+  const profile = profiles.find(p => p.id === currentPickerProfileId);
+  if (!profile) return;
+  profile.dinerIds = Array.from(
+    document.querySelectorAll('.diner-picker-check:checked')
+  ).map(cb => cb.dataset.dinerId);
+  Storage.saveProfiles(profiles);
+  GitHubSync.push();
+  document.getElementById('diner-picker-sheet').close();
   renderDiners();
 }
 
@@ -719,6 +949,10 @@ function prefillDinerForm(data) {
   if (data.notes)    document.getElementById('diner-notes').value    = data.notes;
   setDinerRestrictions(data.restrictions || []);
   setDinerSpice(data.spice ?? 0);
+  setDinerMultiSelect('diner-cuisines-group', data.cuisines || []);
+  setDinerMultiSelect('diner-proteins-group', data.proteins || []);
+  setDinerMultiSelect('diner-mealformats-group', data.mealFormats || []);
+  setDinerMultiSelect('diner-polarizing-group', data.polarizing || []);
 }
 
 /* ============================================================
@@ -749,6 +983,28 @@ function saveApiKey(key) {
   const s = Storage.getSettings();
   s.anthropicApiKey = key.trim();
   Storage.saveSettings(s);
+}
+
+function openGitHubSheet() {
+  const s = Storage.getSettings();
+  document.getElementById('github-token-input').value    = s.githubToken    || '';
+  document.getElementById('github-repo-input').value     = s.githubRepo     || '';
+  document.getElementById('github-filepath-input').value = s.githubFilePath || 'data/pantry-data.json';
+  const last = s.githubLastSync;
+  document.getElementById('github-last-sync').textContent = last
+    ? `Last synced: ${new Date(last).toLocaleString()}` : '';
+  document.getElementById('github-sheet').showModal();
+}
+
+function saveGitHubSettings() {
+  const s = Storage.getSettings();
+  s.githubToken    = document.getElementById('github-token-input').value.trim();
+  s.githubRepo     = document.getElementById('github-repo-input').value.trim();
+  s.githubFilePath = document.getElementById('github-filepath-input').value.trim() || 'data/pantry-data.json';
+  Storage.saveSettings(s);
+  GitHubSync._sha  = null; // reset cached SHA when settings change
+  document.getElementById('github-sheet').close();
+  showToast('GitHub sync settings saved');
 }
 
 function processReceiptImage(file) {
@@ -892,6 +1148,7 @@ function confirmReceiptItems() {
 
   items.push(...newItems);
   Storage.saveItems(items);
+  GitHubSync.push();
   document.getElementById('receipt-review-sheet').close();
   renderInventory();
   showToast(`Added ${newItems.length} item${newItems.length !== 1 ? 's' : ''} from receipt`);
@@ -942,7 +1199,9 @@ function renderPlan() {
 
   document.getElementById('btn-copy-prompt').disabled = false;
 
-  const dinersHtml = (profile.diners || []).map(d => {
+  const profileDiners = (profile.dinerIds || [])
+    .map(id => diners.find(d => d.id === id)).filter(Boolean);
+  const dinersHtml = profileDiners.map(d => {
     const rBadges = (d.restrictions || [])
       .map(r => `<span class="restriction-badge">${esc(r)}</span>`).join('');
     return `
@@ -984,10 +1243,12 @@ function buildPayload(profileId, filter, nDays) {
   const profile = profiles.find(p => p.id === profileId);
   if (!profile) return null;
   const inv = buildInventoryForPayload(filter, nDays);
+  const payloadDiners = (profile.dinerIds || [])
+    .map(id => diners.find(d => d.id === id)).filter(Boolean);
   return {
     generated: new Date().toISOString(),
     occasion:  profile.name,
-    diners: (profile.diners || []).map(d => ({
+    diners: payloadDiners.map(d => ({
       name: d.name, restrictions: d.restrictions,
       spice: d.spice, loves: d.loves, dislikes: d.dislikes, notes: d.notes
     })),
@@ -1130,6 +1391,15 @@ function initEventListeners() {
   document.getElementById('scan-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) stopScan();
   });
+  // cancel fires on Escape (desktop) and hardware back (Android) — ensure clean teardown
+  document.getElementById('scan-overlay').addEventListener('cancel', e => {
+    e.preventDefault();
+    stopScan();
+  });
+
+  /* ---- Share survey + add diner ---- */
+  document.getElementById('btn-share-survey').addEventListener('click', copySurveyLink);
+  document.getElementById('btn-add-diner').addEventListener('click', openAddDinerSheet);
 
   /* ---- Profile sheet ---- */
   document.getElementById('btn-add-profile').addEventListener('click', openAddProfileSheet);
@@ -1165,6 +1435,14 @@ function initEventListeners() {
   document.getElementById('diner-spice-group').addEventListener('click', e => {
     const btn = e.target.closest('.spice-btn');
     if (btn) setDinerSpice(parseInt(btn.dataset.level, 10));
+  });
+
+  // Generic multi-select pill groups
+  ['diner-cuisines-group', 'diner-proteins-group', 'diner-mealformats-group', 'diner-polarizing-group'].forEach(groupId => {
+    document.getElementById(groupId).addEventListener('click', e => {
+      const btn = e.target.closest('.pill-toggle');
+      if (btn) btn.classList.toggle('selected');
+    });
   });
 
   // Paste questionnaire link
@@ -1229,6 +1507,38 @@ function initEventListeners() {
     showToast('API key saved');
   });
 
+  /* ---- GitHub sync settings sheet ---- */
+  document.getElementById('btn-github-settings').addEventListener('click', () => {
+    document.getElementById('settings-menu').style.display = 'none';
+    openGitHubSheet();
+  });
+  document.getElementById('github-cancel-btn').addEventListener('click', () => {
+    document.getElementById('github-sheet').close();
+  });
+  document.getElementById('github-sheet').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+  document.getElementById('github-save-btn').addEventListener('click', saveGitHubSettings);
+  document.getElementById('github-pull-btn').addEventListener('click', async () => {
+    saveGitHubSettings();
+    await GitHubSync.pull();
+    document.getElementById('github-last-sync').textContent =
+      `Last synced: ${new Date().toLocaleString()}`;
+  });
+  document.getElementById('github-push-btn').addEventListener('click', () => {
+    saveGitHubSettings();
+    GitHubSync.push();
+  });
+
+  /* ---- Diner picker sheet ---- */
+  document.getElementById('diner-picker-done-btn').addEventListener('click', saveDinerPicker);
+  document.getElementById('diner-picker-cancel-btn').addEventListener('click', () => {
+    document.getElementById('diner-picker-sheet').close();
+  });
+  document.getElementById('diner-picker-sheet').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+
   /* ---- Receipt review sheet ---- */
   document.getElementById('receipt-review-cancel-btn').addEventListener('click', () => {
     document.getElementById('receipt-review-sheet').close();
@@ -1246,9 +1556,11 @@ function initEventListeners() {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadState();
+  migrateData();
   registerServiceWorker();
   initInstallBanner();
   initBarcodeScanner();
   initEventListeners();
   showTab('inventory');
+  GitHubSync.pull();
 });
